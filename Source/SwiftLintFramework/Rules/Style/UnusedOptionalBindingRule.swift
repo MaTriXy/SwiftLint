@@ -43,9 +43,9 @@ public struct UnusedOptionalBindingRule: ASTRule, ConfigurationProviderRule {
         ]
     )
 
-    public func validate(file: File,
+    public func validate(file: SwiftLintFile,
                          kind: StatementKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         let conditionKind = "source.lang.swift.structure.elem.condition_expr"
         guard kind == .if || kind == .guard else {
             return []
@@ -53,10 +53,10 @@ public struct UnusedOptionalBindingRule: ASTRule, ConfigurationProviderRule {
 
         let elements = dictionary.elements.filter { $0.kind == conditionKind }
         return elements.flatMap { element -> [StyleViolation] in
-            guard let offset = element.offset,
-                let length = element.length,
-                let range = file.contents.bridge().byteRangeToNSRange(start: offset, length: length) else {
-                    return []
+            guard let byteRange = element.byteRange,
+                let range = file.stringView.byteRangeToNSRange(byteRange)
+            else {
+                return []
             }
 
             return violations(in: range, of: file, with: kind).map {
@@ -67,7 +67,7 @@ public struct UnusedOptionalBindingRule: ASTRule, ConfigurationProviderRule {
         }
     }
 
-    private func violations(in range: NSRange, of file: File, with kind: StatementKind) -> [NSRange] {
+    private func violations(in range: NSRange, of file: SwiftLintFile, with kind: StatementKind) -> [NSRange] {
         let kinds = SyntaxKind.commentAndStringKinds
 
         let underscorePattern = "(_\\s*[=,)]\\s*(try\\?)?)"
@@ -82,7 +82,7 @@ public struct UnusedOptionalBindingRule: ASTRule, ConfigurationProviderRule {
             .map { $0.0.range(at: 1) }
     }
 
-    private func containsOptionalTry(at range: NSRange, of file: File) -> Bool {
+    private func containsOptionalTry(at range: NSRange, of file: SwiftLintFile) -> Bool {
         guard configuration.ignoreOptionalTry else {
             return false
         }

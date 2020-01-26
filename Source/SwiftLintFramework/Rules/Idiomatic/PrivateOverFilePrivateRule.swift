@@ -55,7 +55,7 @@ public struct PrivateOverFilePrivateRule: ConfigurationProviderRule, Substitutio
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severityConfiguration.severity,
@@ -63,34 +63,36 @@ public struct PrivateOverFilePrivateRule: ConfigurationProviderRule, Substitutio
         }
     }
 
-    public func violationRanges(in file: File) -> [NSRange] {
+    public func violationRanges(in file: SwiftLintFile) -> [NSRange] {
         let syntaxTokens = file.syntaxMap.tokens
-        let contents = file.contents.bridge()
+        let contents = file.stringView
 
-        return file.structure.dictionary.substructure.compactMap { dictionary -> NSRange? in
+        let dict = file.structureDictionary
+        return dict.substructure.compactMap { dictionary -> NSRange? in
             guard let offset = dictionary.offset else {
                 return nil
             }
 
             if !configuration.validateExtensions &&
-                dictionary.kind.flatMap(SwiftDeclarationKind.init) == .extension {
+                dictionary.declarationKind == .extension {
                 return nil
             }
 
             let parts = syntaxTokens.prefix { offset > $0.offset }
             guard let lastKind = parts.last,
-                SyntaxKind(rawValue: lastKind.type) == .attributeBuiltin,
-                let aclName = contents.substringWithByteRange(start: lastKind.offset, length: lastKind.length),
+                lastKind.kind == .attributeBuiltin,
+                let aclName = contents.substringWithByteRange(lastKind.range),
                 AccessControlLevel(description: aclName) == .fileprivate,
-                let range = contents.byteRangeToNSRange(start: lastKind.offset, length: lastKind.length) else {
-                    return nil
+                let range = contents.byteRangeToNSRange(lastKind.range)
+            else {
+                return nil
             }
 
             return range
         }
     }
 
-    public func substitution(for violationRange: NSRange, in file: File) -> (NSRange, String) {
+    public func substitution(for violationRange: NSRange, in file: SwiftLintFile) -> (NSRange, String)? {
         return (violationRange, "private")
     }
 }

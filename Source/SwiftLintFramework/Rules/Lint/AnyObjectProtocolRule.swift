@@ -38,9 +38,9 @@ public struct AnyObjectProtocolRule: SubstitutionCorrectableASTRule, OptInRule,
 
     // MARK: - ASTRule
 
-    public func validate(file: File,
+    public func validate(file: SwiftLintFile,
                          kind: SwiftDeclarationKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return violationRanges(in: file, kind: kind, dictionary: dictionary).map {
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severity,
@@ -50,26 +50,25 @@ public struct AnyObjectProtocolRule: SubstitutionCorrectableASTRule, OptInRule,
 
     // MARK: - SubstitutionCorrectableASTRule
 
-    public func substitution(for violationRange: NSRange, in file: File) -> (NSRange, String) {
+    public func substitution(for violationRange: NSRange, in file: SwiftLintFile) -> (NSRange, String)? {
         return (violationRange, "AnyObject")
     }
 
-    public func violationRanges(in file: File,
+    public func violationRanges(in file: SwiftLintFile,
                                 kind: SwiftDeclarationKind,
-                                dictionary: [String: SourceKitRepresentable]) -> [NSRange] {
+                                dictionary: SourceKittenDictionary) -> [NSRange] {
         guard kind == .protocol else { return [] }
 
         return dictionary.elements.compactMap { subDict -> NSRange? in
             guard
-                let offset = subDict.offset,
-                let length = subDict.length,
-                let content = file.contents.bridge().substringWithByteRange(start: offset, length: length),
+                let byteRange = subDict.byteRange,
+                let content = file.stringView.substringWithByteRange(byteRange),
                 content == "class"
-                else {
-                    return nil
+            else {
+                return nil
             }
 
-            return file.contents.bridge().byteRangeToNSRange(start: offset, length: length)
+            return file.stringView.byteRangeToNSRange(byteRange)
         }
     }
 }

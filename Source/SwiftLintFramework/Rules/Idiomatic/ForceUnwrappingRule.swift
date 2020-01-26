@@ -55,7 +55,7 @@ public struct ForceUnwrappingRule: OptInRule, ConfigurationProviderRule, Automat
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severity,
@@ -79,45 +79,42 @@ public struct ForceUnwrappingRule: OptInRule, ConfigurationProviderRule, Automat
         SyntaxKind.commentAndStringKinds.union([.keyword, .typeidentifier])
     private static let excludingSyntaxKindsForSecondCapture = SyntaxKind.commentAndStringKinds
 
-    private func violationRanges(in file: File) -> [NSRange] {
-        let contents = file.contents
-        let nsstring = contents.bridge()
-        let range = NSRange(location: 0, length: nsstring.length)
+    private func violationRanges(in file: SwiftLintFile) -> [NSRange] {
         let syntaxMap = file.syntaxMap
 
         let varDeclarationRanges = ForceUnwrappingRule.varDeclarationRegularExpression
-            .matches(in: contents, options: [], range: range)
+            .matches(in: file)
             .compactMap { match -> NSRange? in
                 return match.range
             }
 
         let functionDeclarationRanges = regex(ForceUnwrappingRule.functionReturnPattern)
-            .matches(in: contents, options: [], range: range)
+            .matches(in: file)
             .compactMap { match -> NSRange? in
                 return match.range
             }
 
         return ForceUnwrappingRule.regularExpression
-            .matches(in: contents, options: [], range: range)
+            .matches(in: file)
             .compactMap { match -> NSRange? in
                 if match.range.intersects(varDeclarationRanges) || match.range.intersects(functionDeclarationRanges) {
                     return nil
                 }
 
-                return violationRange(match: match, nsstring: nsstring, syntaxMap: syntaxMap, file: file)
+                return violationRange(match: match, syntaxMap: syntaxMap, file: file)
             }
     }
 
-    private func violationRange(match: NSTextCheckingResult, nsstring: NSString, syntaxMap: SyntaxMap,
-                                file: File) -> NSRange? {
+    private func violationRange(match: NSTextCheckingResult, syntaxMap: SwiftLintSyntaxMap,
+                                file: SwiftLintFile) -> NSRange? {
         if match.numberOfRanges < 3 { return nil }
 
         let firstRange = match.range(at: 1)
         let secondRange = match.range(at: 2)
 
-        guard let matchByteFirstRange = nsstring
+        guard let matchByteFirstRange = file.stringView
             .NSRangeToByteRange(start: firstRange.location, length: firstRange.length),
-            let matchByteSecondRange = nsstring
+            let matchByteSecondRange = file.stringView
                 .NSRangeToByteRange(start: secondRange.location, length: secondRange.length)
             else { return nil }
 
@@ -139,14 +136,14 @@ public struct ForceUnwrappingRule: OptInRule, ConfigurationProviderRule, Automat
         // check if firstCapturedString is either ")" or "]" 
         // and '!' is not within comment or string
         // and matchByteFirstRange is not a type annotation
-        let firstCapturedString = nsstring.substring(with: firstRange)
+        let firstCapturedString = file.stringView.substring(with: firstRange)
         if [")", "]"].contains(firstCapturedString) {
             // check second capture '!'
             let kindsInSecondRange = syntaxMap.kinds(inByteRange: matchByteSecondRange)
             let forceUnwrapNotInCommentOrString = !kindsInSecondRange
                 .contains(where: ForceUnwrappingRule.excludingSyntaxKindsForSecondCapture.contains)
             if forceUnwrapNotInCommentOrString &&
-                !isTypeAnnotation(in: file, contents: nsstring, byteRange: matchByteFirstRange) {
+                !isTypeAnnotation(in: file, byteRange: matchByteFirstRange) {
                 return violationRange
             }
         }
@@ -155,24 +152,22 @@ public struct ForceUnwrappingRule: OptInRule, ConfigurationProviderRule, Automat
     }
 
     // check if first captured range is comment, string, typeidentifier, or a keyword that is not `self`.
-    private func isFirstRangeExcludedToken(byteRange: NSRange, syntaxMap: SyntaxMap, file: File) -> Bool {
+    private func isFirstRangeExcludedToken(byteRange: ByteRange, syntaxMap: SwiftLintSyntaxMap,
+                                           file: SwiftLintFile) -> Bool {
         let tokens = syntaxMap.tokens(inByteRange: byteRange)
-        let nsString = file.contents.bridge()
         return tokens.contains { token in
-            guard let kind = SyntaxKind(rawValue: token.type),
+            guard let kind = token.kind,
                 ForceUnwrappingRule.excludingSyntaxKindsForFirstCapture.contains(kind)
                 else { return false }
             // check for `self
-            guard kind == .keyword,
-                let nsRange = nsString.byteRangeToNSRange(start: token.offset, length: token.length)
-                else { return true }
-            return nsString.substring(with: nsRange) != "self"
+            guard kind == .keyword else { return true }
+            return file.contents(for: token) != "self"
         }
     }
 
     // check deepest kind matching range in structure is a typeAnnotation
-    private func isTypeAnnotation(in file: File, contents: NSString, byteRange: NSRange) -> Bool {
-        let kinds = file.structure.kinds(forByteOffset: byteRange.location)
+    private func isTypeAnnotation(in file: SwiftLintFile, byteRange: ByteRange) -> Bool {
+        let kinds = file.structureDictionary.kinds(forByteOffset: byteRange.location)
         guard let lastItem = kinds.last,
             let lastKind = SwiftDeclarationKind(rawValue: lastItem.kind),
             SwiftDeclarationKind.variableKinds.contains(lastKind) else {
@@ -180,9 +175,9 @@ public struct ForceUnwrappingRule: OptInRule, ConfigurationProviderRule, Automat
         }
 
         // range is in some "source.lang.swift.decl.var.*"
-        let byteOffset = lastItem.byteRange.location
-        let byteLength = byteRange.location - byteOffset
-        if let varDeclarationString = contents.substringWithByteRange(start: byteOffset, length: byteLength),
+        let varRange = ByteRange(location: lastItem.byteRange.location,
+                                 length: byteRange.location - lastItem.byteRange.location)
+        if let varDeclarationString = file.stringView.substringWithByteRange(varRange),
             varDeclarationString.contains("=") {
             // if declarations contains "=", range is not type annotation
             return false

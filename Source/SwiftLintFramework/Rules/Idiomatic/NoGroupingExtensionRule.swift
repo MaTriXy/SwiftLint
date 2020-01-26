@@ -23,8 +23,8 @@ public struct NoGroupingExtensionRule: OptInRule, ConfigurationProviderRule, Aut
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
-        let collector = NamespaceCollector(dictionary: file.structure.dictionary)
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
+        let collector = NamespaceCollector(dictionary: file.structureDictionary)
         let elements = collector.findAllElements(of: [.class, .enum, .struct, .extension])
 
         let susceptibleNames = Set(elements.compactMap { $0.kind != .extension ? $0.name : nil })
@@ -44,19 +44,15 @@ public struct NoGroupingExtensionRule: OptInRule, ConfigurationProviderRule, Aut
         }
     }
 
-    private func hasWhereClause(dictionary: [String: SourceKitRepresentable], file: File) -> Bool {
-        let contents = file.contents.bridge()
-
+    private func hasWhereClause(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
         guard let nameOffset = dictionary.nameOffset,
             let nameLength = dictionary.nameLength,
-            let bodyOffset = dictionary.bodyOffset else {
-            return false
-        }
-
-        let rangeStart = nameOffset + nameLength
-        let rangeLength = bodyOffset - rangeStart
-
-        guard let range = contents.byteRangeToNSRange(start: rangeStart, length: rangeLength) else {
+            let bodyOffset = dictionary.bodyOffset,
+            case let contents = file.stringView,
+            case let rangeStart = nameOffset + nameLength,
+            case let rangeLength = bodyOffset - rangeStart,
+            let range = contents.byteRangeToNSRange(ByteRange(location: rangeStart, length: rangeLength))
+        else {
             return false
         }
 

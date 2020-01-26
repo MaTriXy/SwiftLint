@@ -13,7 +13,7 @@ public struct EmptyCollectionLiteralRule: ConfigurationProviderRule, OptInRule, 
         nonTriggeringExamples: [
             "myArray = []",
             "myArray.isEmpty",
-            "!myArray.isEmpy",
+            "!myArray.isEmpty",
             "myDict = [:]"
         ],
         triggeringExamples: [
@@ -28,7 +28,7 @@ public struct EmptyCollectionLiteralRule: ConfigurationProviderRule, OptInRule, 
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         let pattern = "\\b\\s*(==|!=)\\s*\\[\\s*:?\\s*\\]"
         let excludingKinds = SyntaxKind.commentAndStringKinds
         return file.match(pattern: pattern, excludingSyntaxKinds: excludingKinds).map {

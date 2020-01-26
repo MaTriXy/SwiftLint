@@ -98,8 +98,8 @@ public struct UnusedClosureParameterRule: SubstitutionCorrectableASTRule, Config
         ]
     )
 
-    public func validate(file: File, kind: SwiftExpressionKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: SwiftExpressionKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return violationRanges(in: file, dictionary: dictionary, kind: kind).map { range, name in
             let reason = "Unused parameter \"\(name)\" in a closure should be replaced with _."
             return StyleViolation(ruleDescription: type(of: self).description,
@@ -109,16 +109,16 @@ public struct UnusedClosureParameterRule: SubstitutionCorrectableASTRule, Config
         }
     }
 
-    public func violationRanges(in file: File, kind: SwiftExpressionKind,
-                                dictionary: [String: SourceKitRepresentable]) -> [NSRange] {
+    public func violationRanges(in file: SwiftLintFile, kind: SwiftExpressionKind,
+                                dictionary: SourceKittenDictionary) -> [NSRange] {
         return violationRanges(in: file, dictionary: dictionary, kind: kind).map { $0.range }
     }
 
-    public func substitution(for violationRange: NSRange, in file: File) -> (NSRange, String) {
+    public func substitution(for violationRange: NSRange, in file: SwiftLintFile) -> (NSRange, String)? {
         return (violationRange, "_")
     }
 
-    private func violationRanges(in file: File, dictionary: [String: SourceKitRepresentable],
+    private func violationRanges(in file: SwiftLintFile, dictionary: SourceKittenDictionary,
                                  kind: SwiftExpressionKind) -> [(range: NSRange, name: String)] {
         guard kind == .call,
             !isClosure(dictionary: dictionary),
@@ -127,61 +127,68 @@ public struct UnusedClosureParameterRule: SubstitutionCorrectableASTRule, Config
             let nameOffset = dictionary.nameOffset,
             let nameLength = dictionary.nameLength,
             let bodyLength = dictionary.bodyLength,
-            bodyLength > 0 else {
-                return []
+            bodyLength > 0
+        else {
+            return []
         }
 
         let rangeStart = nameOffset + nameLength
         let rangeLength = (offset + length) - (nameOffset + nameLength)
+        let byteRange = ByteRange(location: rangeStart, length: rangeLength)
         let parameters = dictionary.enclosedVarParameters
-        let contents = file.contents.bridge()
+        let contents = file.stringView
 
         return parameters.compactMap { param -> (NSRange, String)? in
-            guard let paramOffset = param.offset,
-                let name = param.name,
-                name != "_",
-                let regex = try? NSRegularExpression(pattern: name,
-                                                     options: [.ignoreMetacharacters]),
-                let range = contents.byteRangeToNSRange(start: rangeStart, length: rangeLength)
-            else {
-                return nil
-            }
-
-            let paramLength = name.lengthOfBytes(using: .utf8)
-
-            let matches = regex.matches(in: file.contents, options: [], range: range).ranges()
-            for range in matches {
-                guard let byteRange = contents.NSRangeToByteRange(start: range.location,
-                                                                  length: range.length),
-                    // if it's the parameter declaration itself, we should skip
-                    byteRange.location > paramOffset,
-                    case let tokens = file.syntaxMap.tokens(inByteRange: byteRange) else {
-                        continue
-                }
-
-                let token = tokens.first(where: { token -> Bool in
-                    return (SyntaxKind(rawValue: token.type) == .identifier
-                        || (SyntaxKind(rawValue: token.type) == .keyword && name == "self")) &&
-                        token.offset == byteRange.location &&
-                        token.length == byteRange.length
-                })
-
-                // found a usage, there's no violation!
-                guard token == nil else {
-                    return nil
-                }
-            }
-            if let range = contents.byteRangeToNSRange(start: paramOffset, length: paramLength) {
-                return (range, name)
-            }
-            return nil
+            self.rangeAndName(parameter: param, contents: contents, byteRange: byteRange, file: file)
         }
     }
 
-    private func isClosure(dictionary: [String: SourceKitRepresentable]) -> Bool {
+    private func rangeAndName(parameter: SourceKittenDictionary, contents: StringView, byteRange: ByteRange,
+                              file: SwiftLintFile) -> (range: NSRange, name: String)? {
+        guard let paramOffset = parameter.offset,
+            let name = parameter.name,
+            name != "_",
+            let regex = try? NSRegularExpression(pattern: name,
+                                                 options: [.ignoreMetacharacters]),
+            let range = contents.byteRangeToNSRange(byteRange)
+        else {
+            return nil
+        }
+
+        let paramLength = ByteCount(name.lengthOfBytes(using: .utf8))
+
+        let matches = regex.matches(in: file.contents, options: [], range: range).ranges()
+        for range in matches {
+            guard let byteRange = contents.NSRangeToByteRange(start: range.location,
+                                                              length: range.length),
+                // if it's the parameter declaration itself, we should skip
+                byteRange.location > paramOffset,
+                case let tokens = file.syntaxMap.tokens(inByteRange: byteRange)
+            else {
+                continue
+            }
+
+            let token = tokens.first(where: { token -> Bool in
+                return (token.kind == .identifier
+                    || (token.kind == .keyword && name == "self")) &&
+                    token.offset == byteRange.location &&
+                    token.length == byteRange.length
+            })
+
+            // found a usage, there's no violation!
+            guard token == nil else {
+                return nil
+            }
+        }
+        let violationByteRange = ByteRange(location: paramOffset, length: paramLength)
+        return contents.byteRangeToNSRange(violationByteRange).map { range in
+            return (range, name)
+        }
+    }
+
+    private func isClosure(dictionary: SourceKittenDictionary) -> Bool {
         return dictionary.name.flatMap { name -> Bool in
-            let length = name.bridge().length
-            let range = NSRange(location: 0, length: length)
+            let range = name.fullNSRange
             return regex("\\A[\\s\\(]*?\\{").firstMatch(in: name, options: [], range: range) != nil
         } ?? false
     }

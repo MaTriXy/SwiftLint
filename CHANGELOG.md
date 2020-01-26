@@ -2,6 +2,31 @@
 
 #### Breaking
 
+* Replace all uses of `Int`/`Int64`/`NSRange` representing byte offsets
+  to use newly introduced `ByteCount` and `ByteRange` values instead.
+  This will minimize the risk of accidentally using a byte-based offset
+  in character-based contexts.  
+  [Paul Taykalo](https://github.com/PaulTaykalo)
+  [JP Simard](https://github.com/jpsim)
+
+#### Experimental
+
+* None.
+
+#### Enhancements
+
+* Add `deinitializer` type content to `type_contents_order` rule instead of
+  grouping it with initializers.  
+  [Steven Magdy](https://github.com/StevenMagdy)
+
+#### Bug Fixes
+
+* None.
+
+## 0.38.2: Machine Repair Manual
+
+#### Breaking
+
 * None.
 
 #### Experimental
@@ -10,10 +35,208 @@
 
 #### Enhancements
 
-* Speed up Identical Operands rule by using syntaxmap instead of
-  regular expressions.  
+* Add option to configure which kinds of expressions should omit their
+  `return` keyword by introducing an `included` configuration for the
+  `implicit_return` rule. Supported values are `closure`, `function` and
+  `getter`. Defaults to all three.  
+  [Sven Münnich](https://github.com/svenmuennich)
+  [#2870](https://github.com/realm/SwiftLint/issues/2870)
+
+* Add `--correctable` and `--verbose` arguments to the `rules` command
+  to allow displaying only correctable rules, and to always print the
+  full configuration details regardless of your terminal width.  
+  [Optional Endeavors](https://github.com/optionalendeavors)
+
+* Add `capture_group` option to `custom_rules` for more fine-grained placement
+  of the location marker for violating code.  
+  [pyrtsa](https://github.com/pyrtsa)
+
+* Add `orphaned_doc_comment` rule to catch doc comments that are not attached
+  to any declarations.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+  [#2989](https://github.com/realm/SwiftLint/issues/2989)
+  
+* Add new indentation opt-in rule (`indentation_width`) checking for
+  super-basic additive indentation pattern.  
+  [Frederick Pietschmann](https://github.com/fredpi)
+  [#227](https://github.com/realm/SwiftLint/issues/227)
+
+* Catch previously missed violations in the `optional_enum_case_matching` rule
+  when case expressions involved tuples.  
+  [JP Simard](https://github.com/jpsim)
+
+* API docs for SwiftLintFramework are now available at
+  [realm.github.io/SwiftLint](https://realm.github.io/SwiftLint). `Rules.md`
+  now redirects to the rules directory in the API docs
+  [here](https://realm.github.io/SwiftLint/rule-directory.html). Contributors no
+  longer need to update rule documentation in PRs as this is now done
+  automatically. The rule documentation now includes the default configuration.  
+  [JP Simard](https://github.com/jpsim)
+  [#1653](https://github.com/realm/SwiftLint/issues/1653)
+  [#1704](https://github.com/realm/SwiftLint/issues/1704)
+  [#2808](https://github.com/realm/SwiftLint/issues/2808)
+  [#2933](https://github.com/realm/SwiftLint/issues/2933)
+  [#2961](https://github.com/realm/SwiftLint/issues/2961)
+
+#### Bug Fixes
+
+* Fix issues in `unused_import` rule when correcting violations in files
+  containing `@testable` imports where more than the unused imports would be
+  removed.  
+  [JP Simard](https://github.com/jpsim)
+
+## 0.38.1: Extra Shiny Pulsator Cap
+
+#### Breaking
+
+* None.
+
+#### Experimental
+
+* None.
+
+#### Enhancements
+
+* Make `weak_delegate` rule correctable.  
+  [MaxHaertwig](https://github.com/maxhaertwig)
+
+* Allow `SubstitutionCorrectableRule` to return `nil` instead of a correction
+  to indicate that a suitable correction couldn't be found for a specific case.  
+  [MaxHaertwig](https://github.com/maxhaertwig)
+
+* Add `enum_case_associated_value_count` opt-in rule.  
+  [lakpa](https://github.com/lakpa)
+  [#2997](https://github.com/realm/SwiftLint/issues/2997)
+
+* Add `optional_enum_case_matching` opt-in rule to validate that
+  optional enum cases are matched without using `?` when using Swift 5.1 or
+  above. See [SR-7799](https://bugs.swift.org/browse/SR-7799) for more
+  details.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+
+* Add `prefer_self_type_over_type_of_self` opt-in rule to enforce using
+  `Self` instead of `type(of: self)` when using Swift 5.1 or above.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+  [#3003](https://github.com/realm/SwiftLint/issues/3003)
+
+#### Bug Fixes
+
+* Fix crash in `unused_import` rule when unused imports have trailing
+  comments.  
+  [JP Simard](https://github.com/jpsim)
+  [#2990](https://github.com/realm/SwiftLint/issues/2990)
+
+* Handle `@_exported` imports in `unused_import` rule.  
+  [JP Simard](https://github.com/jpsim)
+  [#2877](https://github.com/realm/SwiftLint/issues/2877)
+
+* Fix false positives from the `unused_declaration` rule involving
+  functions in protocol extensions.  
+  [JP Simard](https://github.com/jpsim)
+
+* Fix parsing of SwiftLint commands containing a URL in their trailing comment.  
+  [Sven Münnich](https://github.com/svenmuennich)
+
+* Added missing parameters to `FileNameConfiguration.consoleDescription`.  
+  [timcmiller](https://github.com/timcmiller)
+  [#3009](https://github.com/realm/SwiftLint/issues/3009)
+
+* Fix crash when SourceKit returns out of bounds string byte offsets.  
+  [JP Simard](https://github.com/jpsim)
+
+## 0.38.0: Toroidal Agitation
+
+#### Breaking
+
+* Replace the `SyntaxToken` and `SyntaxMap` structures used in
+  public SwiftLintFramework APIs with a new  `SwiftLintSyntaxToken`
+  and `SwiftlintSyntaxMap` wrappers over structures returned from
+  SourceKitten.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2955](https://github.com/realm/SwiftLint/issues/2955)
+
+#### Experimental
+
+* None.
+
+#### Enhancements
+
+* Make `control_statement` rule correctable.  
+  [MaxHaertwig](https://github.com/maxhaertwig)
+
+* Add `expiring_todo` opt-in rule to allow developers to mark their
+  todos with an expiration date.  
+  [Dan Loman](https://github.com/namolnad)
+  [#727](https://github.com/realm/SwiftLint/issues/727)
+
+* Support compilation databases for `swiftlint analayze`.  
+  [kastiglione](https://github.com/kastiglione)
+  [#2962](https://github.com/realm/SwiftLint/issues/2962)
+
+#### Bug Fixes
+
+* Fix false positive for LetVarWhitespaceRule.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2956](https://github.com/realm/SwiftLint/issues/2956)
+
+* Fix for false-positive identical operands rule.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2953](https://github.com/realm/SwiftLint/issues/2953)
+
+* Fixed false positive in `opening_brace` rule on anonymous closure.  
+  [Andrey Uryadov](https://github.com/a-25)
+  [#2879](https://github.com/realm/SwiftLint/issues/2879)
+
+## 0.37.0: Double Load
+
+#### Breaking
+
+* Replace the `[String: SourceKittenRepresentable]` dictionaries used in
+  public SwiftLintFramework APIs with a new `SourceKittenDictionary`
+  wrapper over dictionaries returned from SourceKitten.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2922](https://github.com/realm/SwiftLint/issues/2922)
+
+* Update Commandant dependency to version 0.17.0, removing the
+  `antitypical/Result` dependency in favor of the Swift standard
+  library's `Result` type.  
+  [JP Simard](https://github.com/jpsim)
+
+#### Experimental
+
+* None.
+
+#### Enhancements
+
+* Speed up many operations by using SwiftLintFile wrapper over File from
+  SourceKitten, caching most members derived from the File.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2929](https://github.com/realm/SwiftLint/issues/2929)
+
+* Speed up Swiftlint by using swift enums instead of raw values for
+  dictionary lookups.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2924](https://github.com/realm/SwiftLint/issues/2924)
+
+* Speed up Identical Operands rule by using syntaxmap instead of regular
+  expressions.  
   [PaulTaykalo](https://github.com/PaulTaykalo)
   [#2918](https://github.com/realm/SwiftLint/issues/2918)
+
+* Speed up syntax token lookups, which can improve performance when
+  linting large files.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)  
+  [#2916](https://github.com/realm/SwiftLint/issues/2916)  
+
+* Use faster comparison in 'file_types_order' rule.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2949](https://github.com/realm/SwiftLint/issues/2949)
+
+* Speed up recursively executed rules (all AST rules and some others) by
+  avoiding the creation of many intermediate collections when
+  accumulating results.  
+  [PaulTaykalo](https://github.com/PaulTaykalo)
+  [#2951](https://github.com/realm/SwiftLint/issues/2951)
 
 * Add GitHub Actions Logging reporter (`github-actions-logging`).  
   [Norio Nomura](https://github.com/norio-nomura)
@@ -186,7 +409,9 @@ This is the last release to support building with Swift 4.2.x.
 
 #### Enhancements
 
-* None.
+* Added 'file_name_no_space' opt-in rule.  
+  [timcmiller](https://github.com/timcmiller)
+  [#3007](https://github.com/realm/SwiftLint/issues/3007)
 
 #### Bug Fixes
 
@@ -252,7 +477,7 @@ This is the last release to support building with Swift 4.2.x.
   [Kevin Randrup](https://github.com/kevinrandrup)
 
 * Make `testSimulateHomebrewTest()` test opt-in because it may fail on unknown
-  condition. Set `SWIFTLINT_FRAMEWORK_TEST_ENABLE_SIMULATE_HOMEBREW_TEST` 
+  condition. Set `SWIFTLINT_FRAMEWORK_TEST_ENABLE_SIMULATE_HOMEBREW_TEST`
   environment variable to test like:
     ```terminal.sh-session
     $ SWIFTLINT_FRAMEWORK_TEST_ENABLE_SIMULATE_HOMEBREW_TEST=1 \
@@ -296,7 +521,7 @@ This is the last release to support building with Swift 4.2.x.
   [alvarhansen](https://github.com/alvarhansen)
   [#2746](https://github.com/realm/SwiftLint/issues/2746)
 
-* Don't trigger `file_types_order` violations in files only containing 
+* Don't trigger `file_types_order` violations in files only containing
   extensions.  
   [Sam Rayner](https://github.com/samrayner)
   [#2749](https://github.com/realm/SwiftLint/issues/2749)
@@ -403,7 +628,7 @@ This is the last release to support building with Swift 4.2.x.
   declaring extensions that add protocol conformances with Swift 5.  
   [Marcelo Fabri](https://github.com/marcelofabri)
   [#2705](https://github.com/realm/SwiftLint/issues/2705)
-  
+
 * Let `disable all` command override `superfluous_disable_command` rule.  
   [Frederick Pietschmann](https://github.com/fredpi)
   [#2670](https://github.com/realm/SwiftLint/issues/2670)

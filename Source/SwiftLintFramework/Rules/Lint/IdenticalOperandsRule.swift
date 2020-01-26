@@ -38,7 +38,9 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
             "func evaluate(_ mode: CommandMode) -> Result<AutoCorrectOptions, CommandantError<CommandantError<()>>>",
             "let array = Array<Array<Int>>()",
             "guard Set(identifiers).count != identifiers.count else { return }",
-            "expect(\"foo\") == \"foo\""
+            #"expect("foo") == "foo""#,
+            "type(of: model).cachePrefix == cachePrefix",
+            "histogram[156].0 == 0x003B8D96 && histogram[156].1 == 1"
         ],
         triggeringExamples: operators.flatMap { operation in
             [
@@ -47,7 +49,10 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
                 "↓foo.aProperty \(operation) foo.aProperty",
                 "↓self.aProperty \(operation) self.aProperty",
                 "↓$0 \(operation) $0",
-                "↓a?.b \(operation) a?.b"
+                "↓a?.b \(operation) a?.b",
+                "if (↓elem \(operation) elem) {}",
+                "XCTAssertTrue(↓s3 \(operation) s3)",
+                "if let tab = tabManager.selectedTab, ↓tab.webView \(operation) tab.webView"
             ]
         }
     )
@@ -57,10 +62,10 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
         let index: Int
 
         // tokens in this operand
-        let tokens: [SyntaxToken]
+        let tokens: [SwiftLintSyntaxToken]
     }
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         let operators = type(of: self).operators.joined(separator: "|")
         return
             file.matchesAndTokens(matching: "\\s(" + operators + ")\\s")
@@ -73,8 +78,8 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
                 }
     }
 
-    private func violationRangeFrom(match: NSTextCheckingResult, in file: File) -> NSRange? {
-        let contents = file.contents.bridge()
+    private func violationRangeFrom(match: NSTextCheckingResult, in file: SwiftLintFile) -> NSRange? {
+        let contents = file.stringView
         let operatorRange = match.range(at: 1)
         guard let operatorByteRange = contents.NSRangeToByteRange(operatorRange) else {
             return nil
@@ -104,7 +109,7 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
         }
 
         // Make sure both operands have same token types
-        guard leftOperand.tokens.map({ $0.type }) == rightOperand.tokens.map({ $0.type }) else {
+        guard leftOperand.tokens.map({ $0.value.type }) == rightOperand.tokens.map({ $0.value.type }) else {
             return nil
         }
 
@@ -118,20 +123,19 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
             return nil
         }
 
-        // last check is to check if we have ?? to the left of the leftmost token
         if leftOperand.index != 0 {
             let previousToken = tokens[leftOperand.index - 1]
-            guard !contents.isNilCoalecingOperatorBetweenTokens(previousToken, leftmostToken) else {
+
+            guard contents.isWhiteSpaceBetweenTokens(previousToken, leftmostToken) else {
                 return nil
             }
         }
 
-        let violationRange = file.contents.byteRangeToNSRange(start: leftmostToken.offset,
-                                                              length: leftmostToken.length)
+        let violationRange = file.stringView.byteRangeToNSRange(leftmostToken.range)
         return violationRange
     }
 
-    private func operandsStartingFromIndexes(leftTokenIndex: Int, rightTokenIndex: Int, file: File)
+    private func operandsStartingFromIndexes(leftTokenIndex: Int, rightTokenIndex: Int, file: SwiftLintFile)
         -> (leftOperand: Operand, rightOperand: Operand) {
             let tokens = file.syntaxMap.tokens
 
@@ -142,7 +146,7 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
             while currentIndex > 0 {
                 let prevToken = tokens[currentIndex - 1]
 
-                guard file.contents.isDotOrOptionalChainingBetweenTokens(prevToken, leftMostToken) else { break }
+                guard file.stringView.isDotOrOptionalChainingBetweenTokens(prevToken, leftMostToken) else { break }
 
                 leftTokens.insert(prevToken, at: 0)
                 currentIndex -= 1
@@ -156,7 +160,7 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
             while currentIndex < tokens.count - 1 {
                 let nextToken = tokens[currentIndex + 1]
 
-                guard file.contents.isDotOrOptionalChainingBetweenTokens(rightMostToken, nextToken) else { break }
+                guard file.stringView.isDotOrOptionalChainingBetweenTokens(rightMostToken, nextToken) else { break }
 
                 rightTokens.append(nextToken)
                 currentIndex += 1
@@ -168,32 +172,34 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
     }
 }
 
-private extension NSString {
-    func NSRangeToByteRange(_ range: NSRange) -> NSRange? {
-        return NSRangeToByteRange(start: range.location, length: range.length)
+private extension StringView {
+    func subStringWithSyntaxToken(_ syntaxToken: SwiftLintSyntaxToken) -> String? {
+        return substringWithByteRange(syntaxToken.range)
     }
 
-    func subStringWithSyntaxToken(_ syntaxToken: SyntaxToken) -> String? {
-        return substringWithByteRange(start: syntaxToken.offset, length: syntaxToken.length)
+    func subStringBetweenTokens(_ startToken: SwiftLintSyntaxToken, _ endToken: SwiftLintSyntaxToken) -> String? {
+        let byteRange = ByteRange(location: startToken.range.upperBound,
+                                  length: endToken.offset - startToken.range.upperBound)
+        return substringWithByteRange(byteRange)
     }
 
-    func subStringBetweenTokens(_ startToken: SyntaxToken, _ endToken: SyntaxToken) -> String? {
-        return substringWithByteRange(start: startToken.offset + startToken.length,
-                                      length: endToken.offset - startToken.offset - startToken.length)
+    func isDotOrOptionalChainingBetweenTokens(_ startToken: SwiftLintSyntaxToken,
+                                              _ endToken: SwiftLintSyntaxToken) -> Bool {
+        return isRegexBetweenTokens(startToken, #"[\?!]?\."#, endToken)
     }
 
-    func isDotOrOptionalChainingBetweenTokens(_ startToken: SyntaxToken, _ endToken: SyntaxToken) -> Bool {
-        return isRegexBetweenTokens(startToken, "[\\?!]?\\.", endToken)
+    func isWhiteSpaceBetweenTokens(_ startToken: SwiftLintSyntaxToken,
+                                   _ endToken: SwiftLintSyntaxToken) -> Bool {
+        guard let betweenTokens = subStringBetweenTokens(startToken, endToken) else { return false }
+        let range = betweenTokens.fullNSRange
+        return !regex(#"^[\s\(,]*$"#).matches(in: betweenTokens, options: [], range: range).isEmpty
     }
 
-    func isNilCoalecingOperatorBetweenTokens(_ startToken: SyntaxToken, _ endToken: SyntaxToken) -> Bool {
-        return isRegexBetweenTokens(startToken, "\\?\\?", endToken)
-    }
-
-    func isRegexBetweenTokens(_ startToken: SyntaxToken, _ regexString: String, _ endToken: SyntaxToken) -> Bool {
+    func isRegexBetweenTokens(_ startToken: SwiftLintSyntaxToken, _ regexString: String,
+                              _ endToken: SwiftLintSyntaxToken) -> Bool {
         guard let betweenTokens = subStringBetweenTokens(startToken, endToken) else { return false }
 
-        let range = NSRange(location: 0, length: betweenTokens.utf16.count)
+        let range = betweenTokens.fullNSRange
         return !regex("^\\s*\(regexString)\\s*$").matches(in: betweenTokens, options: [], range: range).isEmpty
     }
 }

@@ -31,19 +31,20 @@ public struct ExplicitTopLevelACLRule: OptInRule, ConfigurationProviderRule, Aut
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         let extensionKinds: Set<SwiftDeclarationKind> = [.extension, .extensionClass, .extensionEnum,
                                                          .extensionProtocol, .extensionStruct]
 
         // find all top-level types marked as internal (either explictly or implictly)
-        let internalTypesOffsets = file.structure.dictionary.substructure.compactMap { element -> Int? in
+        let dictionary = file.structureDictionary
+        let internalTypesOffsets = dictionary.substructure.compactMap { element -> ByteCount? in
             // ignore extensions
-            guard let kind = element.kind.flatMap(SwiftDeclarationKind.init(rawValue:)),
+            guard let kind = element.declarationKind,
                 !extensionKinds.contains(kind) else {
                     return nil
             }
 
-            if element.accessibility.flatMap(AccessControlLevel.init(identifier:)) == .internal {
+            if element.accessibility == .internal {
                 return element.offset
             }
 
@@ -55,7 +56,7 @@ public struct ExplicitTopLevelACLRule: OptInRule, ConfigurationProviderRule, Aut
         }
 
         // find all "internal" tokens
-        let contents = file.contents.bridge()
+        let contents = file.stringView
         let allInternalRanges = file.match(pattern: "internal", with: [.attributeBuiltin]).compactMap {
             contents.NSRangeToByteRange(start: $0.location, length: $0.length)
         }
@@ -71,7 +72,7 @@ public struct ExplicitTopLevelACLRule: OptInRule, ConfigurationProviderRule, Aut
             // the "internal" token correspond to the type if there're only
             // attributeBuiltin (`final` for example) tokens between them
             let length = typeOffset - previousInternalByteRange.location
-            let range = NSRange(location: previousInternalByteRange.location, length: length)
+            let range = ByteRange(location: previousInternalByteRange.location, length: length)
             let internalDoesntBelongToType = Set(file.syntaxMap.kinds(inByteRange: range)) != [.attributeBuiltin]
 
             return internalDoesntBelongToType
@@ -84,7 +85,7 @@ public struct ExplicitTopLevelACLRule: OptInRule, ConfigurationProviderRule, Aut
         }
     }
 
-    private func lastInternalByteRange(before typeOffset: Int, in ranges: [NSRange]) -> NSRange? {
+    private func lastInternalByteRange(before typeOffset: ByteCount, in ranges: [ByteRange]) -> ByteRange? {
         let firstPartition = ranges.prefix(while: { typeOffset > $0.location })
         return firstPartition.last
     }

@@ -32,8 +32,8 @@ public struct LowerACLThanParentRule: OptInRule, ConfigurationProviderRule, Auto
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
-        return validateACL(isHigherThan: .open, in: file.structure.dictionary).map {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
+        return validateACL(isHigherThan: .open, in: file.structureDictionary).map {
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: $0))
@@ -41,15 +41,15 @@ public struct LowerACLThanParentRule: OptInRule, ConfigurationProviderRule, Auto
     }
 
     private func validateACL(isHigherThan parentAccessibility: AccessControlLevel,
-                             in substructure: [String: SourceKitRepresentable]) -> [Int] {
-        return substructure.substructure.flatMap { element -> [Int] in
-            guard let elementKind = element.kind.flatMap(SwiftDeclarationKind.init),
+                             in substructure: SourceKittenDictionary) -> [ByteCount] {
+        return substructure.substructure.flatMap { element -> [ByteCount] in
+            guard let elementKind = element.declarationKind,
                 elementKind.isRelevantDeclaration else {
                 return []
             }
 
-            var violationOffset: Int?
-            let accessibility = element.accessibility.flatMap(AccessControlLevel.init(identifier:)) ?? .internal
+            var violationOffset: ByteCount?
+            let accessibility = element.accessibility ?? .internal
             // Swift 5 infers members of private types with no explicit ACL attribute to be `internal`.
             let isInferredACL = accessibility == .internal && !element.enclosedSwiftAttributes.contains(.internal)
             if !isInferredACL, accessibility.priority > parentAccessibility.priority {

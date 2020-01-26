@@ -174,6 +174,12 @@ class EmptyXCTestMethodRuleTests: XCTestCase {
     }
 }
 
+class EnumCaseAssociatedValuesLengthRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(EnumCaseAssociatedValuesLengthRule.description)
+    }
+}
+
 class ExplicitACLRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(ExplicitACLRule.description)
@@ -273,12 +279,6 @@ class IdenticalOperandsRuleTests: XCTestCase {
 class ImplicitGetterRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(ImplicitGetterRule.description)
-    }
-}
-
-class ImplicitReturnRuleTests: XCTestCase {
-    func testWithDefaultConfiguration() {
-        verifyRule(ImplicitReturnRule.description)
     }
 }
 
@@ -492,6 +492,12 @@ class OperatorUsageWhitespaceRuleTests: XCTestCase {
     }
 }
 
+class OptionalEnumCaseMatchingRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(OptionalEnumCaseMatchingRule.description)
+    }
+}
+
 class OverriddenSuperCallRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(OverriddenSuperCallRule.description)
@@ -507,6 +513,12 @@ class OverrideInExtensionRuleTests: XCTestCase {
 class PatternMatchingKeywordsRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(PatternMatchingKeywordsRule.description)
+    }
+}
+
+class PreferSelfTypeOverTypeOfSelfRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(PreferSelfTypeOverTypeOfSelfRule.description)
     }
 }
 

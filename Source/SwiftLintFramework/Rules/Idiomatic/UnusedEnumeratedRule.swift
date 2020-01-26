@@ -1,4 +1,3 @@
-import Foundation
 import SourceKittenFramework
 
 public struct UnusedEnumeratedRule: ASTRule, ConfigurationProviderRule, AutomaticTestableRule {
@@ -30,8 +29,8 @@ public struct UnusedEnumeratedRule: ASTRule, ConfigurationProviderRule, Automati
         ]
     )
 
-    public func validate(file: File, kind: StatementKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: StatementKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         guard kind == .forEach,
             isEnumeratedCall(dictionary: dictionary),
             let byteRange = byteRangeForVariables(dictionary: dictionary),
@@ -44,7 +43,7 @@ public struct UnusedEnumeratedRule: ASTRule, ConfigurationProviderRule, Automati
                 return []
         }
 
-        let offset: Int
+        let offset: ByteCount
         let reason: String
         if firstTokenIsUnderscore {
             offset = tokens[0].offset
@@ -62,16 +61,15 @@ public struct UnusedEnumeratedRule: ASTRule, ConfigurationProviderRule, Automati
         ]
     }
 
-    private func isTokenUnderscore(_ token: SyntaxToken, file: File) -> Bool {
+    private func isTokenUnderscore(_ token: SwiftLintSyntaxToken, file: SwiftLintFile) -> Bool {
         return token.length == 1 &&
-            SyntaxKind(rawValue: token.type) == .keyword &&
+            token.kind == .keyword &&
             isUnderscore(file: file, token: token)
     }
 
-    private func isEnumeratedCall(dictionary: [String: SourceKitRepresentable]) -> Bool {
+    private func isEnumeratedCall(dictionary: SourceKittenDictionary) -> Bool {
         for subDict in dictionary.substructure {
-            guard let kindString = subDict.kind,
-                SwiftExpressionKind(rawValue: kindString) == .call,
+            guard subDict.expressionKind == .call,
                 let name = subDict.name else {
                     continue
             }
@@ -84,7 +82,7 @@ public struct UnusedEnumeratedRule: ASTRule, ConfigurationProviderRule, Automati
         return false
     }
 
-    private func byteRangeForVariables(dictionary: [String: SourceKitRepresentable]) -> NSRange? {
+    private func byteRangeForVariables(dictionary: SourceKittenDictionary) -> ByteRange? {
         let expectedKind = "source.lang.swift.structure.elem.id"
         for subDict in dictionary.elements where subDict.kind == expectedKind {
             guard let offset = subDict.offset,
@@ -92,14 +90,13 @@ public struct UnusedEnumeratedRule: ASTRule, ConfigurationProviderRule, Automati
                 continue
             }
 
-            return NSRange(location: offset, length: length)
+            return ByteRange(location: offset, length: length)
         }
 
         return nil
     }
 
-    private func isUnderscore(file: File, token: SyntaxToken) -> Bool {
-        let contents = file.contents.bridge()
-        return contents.substringWithByteRange(start: token.offset, length: token.length) == "_"
+    private func isUnderscore(file: SwiftLintFile, token: SwiftLintSyntaxToken) -> Bool {
+        return file.contents(for: token) == "_"
     }
 }

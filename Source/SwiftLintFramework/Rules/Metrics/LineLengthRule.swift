@@ -27,7 +27,7 @@ public struct LineLengthRule: ConfigurationProviderRule {
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         let minValue = configuration.params.map({ $0.value }).min() ?? .max
         let swiftDeclarationKindsByLine = Lazy(file.swiftDeclarationKindsByLine() ?? [])
         let syntaxKindsByLine = Lazy(file.syntaxKindsByLine() ?? [])
@@ -91,7 +91,7 @@ public struct LineLengthRule: ConfigurationProviderRule {
     ///
     /// - parameter sourceString: Original string, possibly containing literals
     /// - parameter delimiter:    Delimiter of the literal
-    ///     (characters before the parentheses, e.g. `#colorLiteral`)
+    ///                           (characters before the parentheses, e.g. `#colorLiteral`)
     ///
     /// - returns: sourceString with the given literals replaced by `#`
     private func stripLiterals(fromSourceString sourceString: String,
@@ -136,7 +136,7 @@ private class Lazy<Result> {
 
 private extension String {
     var strippingURLs: String {
-        let range = NSRange(location: 0, length: bridge().length)
+        let range = fullNSRange
         // Workaround for Linux until NSDataDetector is available
         #if os(Linux)
             // Regex pattern from http://daringfireball.net/2010/07/improved_regex_for_matching_urls

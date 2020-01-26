@@ -89,8 +89,8 @@ public struct UnusedControlFlowLabelRule: SubstitutionCorrectableASTRule, Config
 
     private static let kinds: Set<StatementKind> = [.if, .for, .forEach, .while, .repeatWhile, .switch]
 
-    public func validate(file: File, kind: StatementKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: StatementKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return self.violationRanges(in: file, kind: kind, dictionary: dictionary).map { range in
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severity,
@@ -98,38 +98,34 @@ public struct UnusedControlFlowLabelRule: SubstitutionCorrectableASTRule, Config
         }
     }
 
-    public func substitution(for violationRange: NSRange, in file: File) -> (NSRange, String) {
+    public func substitution(for violationRange: NSRange, in file: SwiftLintFile) -> (NSRange, String)? {
         var rangeToRemove = violationRange
-        let contentsNSString = file.contents.bridge()
+        let contentsNSString = file.stringView
         if let byteRange = contentsNSString.NSRangeToByteRange(start: violationRange.location,
                                                                length: violationRange.length),
-            let nextToken = file.syntaxMap.tokens.first(where: { $0.offset > byteRange.location }),
-            let nextTokenLocation = contentsNSString.byteRangeToNSRange(start: nextToken.offset, length: 0) {
-            rangeToRemove.length = nextTokenLocation.location - violationRange.location
+            let nextToken = file.syntaxMap.tokens.first(where: { $0.offset > byteRange.location }) {
+            let nextTokenLocation = contentsNSString.location(fromByteOffset: nextToken.offset)
+            rangeToRemove.length = nextTokenLocation - violationRange.location
         }
 
         return (rangeToRemove, "")
     }
 
-    public func violationRanges(in file: File, kind: StatementKind,
-                                dictionary: [String: SourceKitRepresentable]) -> [NSRange] {
+    public func violationRanges(in file: SwiftLintFile, kind: StatementKind,
+                                dictionary: SourceKittenDictionary) -> [NSRange] {
         guard type(of: self).kinds.contains(kind),
-            let offset = dictionary.offset, let length = dictionary.length,
-            case let byteRange = NSRange(location: offset, length: length),
+            let byteRange = dictionary.byteRange,
             case let tokens = file.syntaxMap.tokens(inByteRange: byteRange),
             let firstToken = tokens.first,
-            SyntaxKind(rawValue: firstToken.type) == .identifier,
+            firstToken.kind == .identifier,
             let tokenContent = file.contents(for: firstToken),
-            case let contents = file.contents.bridge(),
-            let range = contents.byteRangeToNSRange(start: offset, length: length) else {
-                return []
-        }
-
-        let pattern = "(?:break|continue)\\s+\(tokenContent)\\b"
-        guard file.match(pattern: pattern, with: [.keyword, .identifier], range: range).isEmpty,
-            let violationRange = contents.byteRangeToNSRange(start: firstToken.offset,
-                                                             length: firstToken.length) else {
-                return []
+            case let contents = file.stringView,
+            let range = contents.byteRangeToNSRange(byteRange),
+            case let pattern = "(?:break|continue)\\s+\(tokenContent)\\b",
+            file.match(pattern: pattern, with: [.keyword, .identifier], range: range).isEmpty,
+            let violationRange = contents.byteRangeToNSRange(firstToken.range)
+        else {
+            return []
         }
 
         return [violationRange]

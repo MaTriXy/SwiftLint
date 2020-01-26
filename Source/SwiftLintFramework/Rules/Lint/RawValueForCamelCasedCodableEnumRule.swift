@@ -1,7 +1,7 @@
 import SourceKittenFramework
 
 public struct RawValueForCamelCasedCodableEnumRule: ASTRule, OptInRule, ConfigurationProviderRule,
-AutomaticTestableRule {
+    AutomaticTestableRule {
     public var configuration = SeverityConfiguration(.warning)
 
     public init() {}
@@ -83,9 +83,9 @@ AutomaticTestableRule {
         ]
     )
 
-    public func validate(file: File,
+    public func validate(file: SwiftLintFile,
                          kind: SwiftDeclarationKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         guard kind == .enum else { return [] }
 
         let codableTypesSet = Set(["Codable", "Decodable", "Encodable"])
@@ -104,22 +104,20 @@ AutomaticTestableRule {
         }
     }
 
-    private func violatingOffsetsForEnum(dictionary: [String: SourceKitRepresentable]) -> [Int] {
-        let locs = substructureElements(of: dictionary, matching: .enumcase)
+    private func violatingOffsetsForEnum(dictionary: SourceKittenDictionary) -> [ByteCount] {
+        return substructureElements(of: dictionary, matching: .enumcase)
             .compactMap { substructureElements(of: $0, matching: .enumelement) }
             .flatMap(camelCasedEnumCasesMissingRawValue)
             .compactMap { $0.offset }
-
-        return locs
     }
 
-    private func substructureElements(of dict: [String: SourceKitRepresentable],
-                                      matching kind: SwiftDeclarationKind) -> [[String: SourceKitRepresentable]] {
-        return dict.substructure.filter { $0.kind.flatMap(SwiftDeclarationKind.init) == kind }
+    private func substructureElements(of dict: SourceKittenDictionary,
+                                      matching kind: SwiftDeclarationKind) -> [SourceKittenDictionary] {
+        return dict.substructure.filter { $0.declarationKind == kind }
     }
 
     private func camelCasedEnumCasesMissingRawValue(
-        _ enumElements: [[String: SourceKitRepresentable]]) -> [[String: SourceKitRepresentable]] {
+        _ enumElements: [SourceKittenDictionary]) -> [SourceKittenDictionary] {
         return enumElements
             .filter { substructure in
                 guard let name = substructure.name, !name.isLowercase() else { return false }

@@ -1,4 +1,3 @@
-import Foundation
 import SourceKittenFramework
 
 public struct FirstWhereRule: CallPairRule, OptInRule, ConfigurationProviderRule, AutomaticTestableRule {
@@ -31,7 +30,7 @@ public struct FirstWhereRule: CallPairRule, OptInRule, ConfigurationProviderRule
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return validate(
             file: file,
             pattern: "[\\}\\)]\\s*\\.first",
@@ -41,17 +40,17 @@ public struct FirstWhereRule: CallPairRule, OptInRule, ConfigurationProviderRule
         ) { dictionary in
             if
                 !dictionary.substructure.isEmpty &&
-                dictionary.substructure.last?.kind.flatMap(SwiftExpressionKind.init) != .argument &&
+                dictionary.substructure.last?.expressionKind != .argument &&
                 dictionary.substructure.last?.name != "NSPredicate"
             {
                 return true // has a substructure, like a closure
             }
 
-            guard let bodyOffset = dictionary.bodyOffset, let bodyLength = dictionary.bodyLength else {
+            guard let bodyRange = dictionary.bodyByteRange else {
                 return true
             }
 
-            let syntaxKinds = file.syntaxMap.kinds(inByteRange: NSRange(location: bodyOffset, length: bodyLength))
+            let syntaxKinds = file.syntaxMap.kinds(inByteRange: bodyRange)
             return !syntaxKinds.contains(.string)
         }
     }

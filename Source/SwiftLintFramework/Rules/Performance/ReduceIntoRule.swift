@@ -97,13 +97,14 @@ public struct ReduceIntoRule: ASTRule, ConfigurationProviderRule, OptInRule, Aut
     private let reduceExpression = regex("(?<!\\w)reduce$")
     private let initExpression = regex("^(?:\\[.+:?.*\\]|(?:Array|Dictionary)<.+>)(?:\\.init\\(|\\().*\\)$")
 
-    public func validate(file: File, kind: SwiftExpressionKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: SwiftExpressionKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         guard
             kind == .call,
             let nameOffset = dictionary.nameOffset,
             let nameLength = dictionary.nameLength,
-            let nameRange = file.contents.byteRangeToNSRange(start: nameOffset, length: nameLength),
+            case let nameByteRange = ByteRange(location: nameOffset, length: nameLength),
+            let nameRange = file.stringView.byteRangeToNSRange(nameByteRange),
             let match = reduceExpression.firstMatch(in: file.contents, options: [], range: nameRange),
             dictionary.enclosedArguments.count == 2,
             // would otherwise equal "into"
@@ -123,33 +124,27 @@ public struct ReduceIntoRule: ASTRule, ConfigurationProviderRule, OptInRule, Aut
         return [violation]
     }
 
-    private func argumentIsCopyOnWriteType(_ argument: [String: SourceKitRepresentable], file: File) -> Bool {
+    private func argumentIsCopyOnWriteType(_ argument: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
         if let substructure = argument.substructure.first,
-            let kind = substructure.kind {
-            switch kind {
-            case SwiftExpressionKind.array.rawValue,
-                 SwiftExpressionKind.dictionary.rawValue:
+            let kind = substructure.expressionKind {
+            if kind == .array || kind == .dictionary {
                 return true
-            default:
-                break
             }
         }
 
-        let contents = file.contents
-        guard let offset = argument.offset,
-            let length = argument.length,
-            let range = contents.byteRangeToNSRange(start: offset, length: length)
+        let contents = file.stringView
+        guard let byteRange = argument.byteRange,
+            let range = contents.byteRangeToNSRange(byteRange)
             else { return false }
 
         // Check for string literal
-        let byteRange = NSRange(location: offset, length: length)
         let kinds = file.syntaxMap.kinds(inByteRange: byteRange)
         if kinds == [.string] {
             return true
         }
 
         // check for Array or Dictionary init
-        let initMatch = initExpression.firstMatch(in: contents, options: [], range: range)
+        let initMatch = initExpression.firstMatch(in: contents.string, options: [], range: range)
         return initMatch != nil
     }
 }

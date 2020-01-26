@@ -42,7 +42,7 @@ public struct ReturnArrowWhitespaceRule: CorrectableRule, ConfigurationProviderR
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file, skipParentheses: true).map {
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severity,
@@ -50,7 +50,7 @@ public struct ReturnArrowWhitespaceRule: CorrectableRule, ConfigurationProviderR
         }
     }
 
-    public func correct(file: File) -> [Correction] {
+    public func correct(file: SwiftLintFile) -> [Correction] {
         let violationsRanges = violationRanges(in: file, skipParentheses: false)
         let matches = file.ruleEnabled(violatingRanges: violationsRanges, for: self)
         if matches.isEmpty { return [] }
@@ -86,7 +86,7 @@ public struct ReturnArrowWhitespaceRule: CorrectableRule, ConfigurationProviderR
     // MARK: - Private
 
     private let pattern: String = {
-        //just horizontal spacing so that "func abc()->\n" can pass validation
+        // Just horizontal spacing so that "func abc()->\n" can pass validation
         let space = "[ \\f\\r\\t]"
 
         // Either 0 space characters or 2+
@@ -104,7 +104,7 @@ public struct ReturnArrowWhitespaceRule: CorrectableRule, ConfigurationProviderR
         return "\\)(\(patterns.joined(separator: "|")))\\S+"
     }()
 
-    private func violationRanges(in file: File, skipParentheses: Bool) -> [NSRange] {
+    private func violationRanges(in file: SwiftLintFile, skipParentheses: Bool) -> [NSRange] {
         let matches = file.match(pattern: pattern, with: [.typeidentifier])
         guard skipParentheses else {
             return matches

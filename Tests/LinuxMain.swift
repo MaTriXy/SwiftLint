@@ -112,7 +112,9 @@ extension CommandTests {
         ("testEnablePrevious", testEnablePrevious),
         ("testEnableThis", testEnableThis),
         ("testEnableNext", testEnableNext),
-        ("testTrailingCOmment", testTrailingCOmment),
+        ("testTrailingComment", testTrailingComment),
+        ("testTrailingCommentWithUrl", testTrailingCommentWithUrl),
+        ("testTrailingCommentUrlOnly", testTrailingCommentUrlOnly),
         ("testActionInverse", testActionInverse),
         ("testNoModifierCommandExpandsToItself", testNoModifierCommandExpandsToItself),
         ("testExpandPreviousCommand", testExpandPreviousCommand),
@@ -242,7 +244,8 @@ extension CustomRulesTests {
         ("testLocalDisableCustomRuleWithMultipleRules", testLocalDisableCustomRuleWithMultipleRules),
         ("testCustomRulesIncludedDefault", testCustomRulesIncludedDefault),
         ("testCustomRulesIncludedExcludesFile", testCustomRulesIncludedExcludesFile),
-        ("testCustomRulesExcludedExcludesFile", testCustomRulesExcludedExcludesFile)
+        ("testCustomRulesExcludedExcludesFile", testCustomRulesExcludedExcludesFile),
+        ("testCustomRulesCaptureGroup", testCustomRulesCaptureGroup)
     ]
 }
 
@@ -328,12 +331,6 @@ extension DiscouragedOptionalCollectionRuleTests {
     ]
 }
 
-extension DocumentationTests {
-    static var allTests: [(String, (DocumentationTests) -> () throws -> Void)] = [
-        ("testRulesDocumentationIsUpdated", testRulesDocumentationIsUpdated)
-    ]
-}
-
 extension DuplicateEnumCasesRuleTests {
     static var allTests: [(String, (DuplicateEnumCasesRuleTests) -> () throws -> Void)] = [
         ("testWithDefaultConfiguration", testWithDefaultConfiguration)
@@ -391,6 +388,25 @@ extension EmptyStringRuleTests {
 extension EmptyXCTestMethodRuleTests {
     static var allTests: [(String, (EmptyXCTestMethodRuleTests) -> () throws -> Void)] = [
         ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+    ]
+}
+
+extension EnumCaseAssociatedValuesLengthRuleTests {
+    static var allTests: [(String, (EnumCaseAssociatedValuesLengthRuleTests) -> () throws -> Void)] = [
+        ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+    ]
+}
+
+extension ExpiringTodoRuleTests {
+    static var allTests: [(String, (ExpiringTodoRuleTests) -> () throws -> Void)] = [
+        ("testExpiringTodo", testExpiringTodo),
+        ("testExpiredTodo", testExpiredTodo),
+        ("testExpiredFixMe", testExpiredFixMe),
+        ("testApproachingExpiryTodo", testApproachingExpiryTodo),
+        ("testNonExpiredTodo", testNonExpiredTodo),
+        ("testExpiredCustomDelimiters", testExpiredCustomDelimiters),
+        ("testExpiredCustomSeparator", testExpiredCustomSeparator),
+        ("testExpiredCustomFormat", testExpiredCustomFormat)
     ]
 }
 
@@ -492,6 +508,16 @@ extension FileLengthRuleTests {
     static var allTests: [(String, (FileLengthRuleTests) -> () throws -> Void)] = [
         ("testFileLengthWithDefaultConfiguration", testFileLengthWithDefaultConfiguration),
         ("testFileLengthIgnoringLinesWithOnlyComments", testFileLengthIgnoringLinesWithOnlyComments)
+    ]
+}
+
+extension FileNameNoSpaceRuleTests {
+    static var allTests: [(String, (FileNameNoSpaceRuleTests) -> () throws -> Void)] = [
+        ("testFileNameDoesntTrigger", testFileNameDoesntTrigger),
+        ("testFileWithSpaceDoesTrigger", testFileWithSpaceDoesTrigger),
+        ("testExtensionNameDoesntTrigger", testExtensionNameDoesntTrigger),
+        ("testExtensionWithSpaceDoesTrigger", testExtensionWithSpaceDoesTrigger),
+        ("testCustomExcludedList", testCustomExcludedList)
     ]
 }
 
@@ -628,9 +654,19 @@ extension ImplicitGetterRuleTests {
     ]
 }
 
+extension ImplicitReturnConfigurationTests {
+    static var allTests: [(String, (ImplicitReturnConfigurationTests) -> () throws -> Void)] = [
+        ("testImplicitReturnConfigurationFromDictionary", testImplicitReturnConfigurationFromDictionary),
+        ("testImplicitReturnConfigurationThrowsOnUnrecognizedModifierGroup", testImplicitReturnConfigurationThrowsOnUnrecognizedModifierGroup)
+    ]
+}
+
 extension ImplicitReturnRuleTests {
     static var allTests: [(String, (ImplicitReturnRuleTests) -> () throws -> Void)] = [
-        ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+        ("testWithDefaultConfiguration", testWithDefaultConfiguration),
+        ("testOnlyClosureKindIncluded", testOnlyClosureKindIncluded),
+        ("testOnlyFunctionKindIncluded", testOnlyFunctionKindIncluded),
+        ("testOnlyGetterKindIncluded", testOnlyGetterKindIncluded)
     ]
 }
 
@@ -646,6 +682,21 @@ extension ImplicitlyUnwrappedOptionalRuleTests {
         ("testWithDefaultConfiguration", testWithDefaultConfiguration),
         ("testImplicitlyUnwrappedOptionalRuleDefaultConfiguration", testImplicitlyUnwrappedOptionalRuleDefaultConfiguration),
         ("testImplicitlyUnwrappedOptionalRuleWarnsOnOutletsInAllMode", testImplicitlyUnwrappedOptionalRuleWarnsOnOutletsInAllMode)
+    ]
+}
+
+extension IndentationWidthRuleTests {
+    static var allTests: [(String, (IndentationWidthRuleTests) -> () throws -> Void)] = [
+        ("testFirstLineIndentation", testFirstLineIndentation),
+        ("testMixedTabSpaceIndentation", testMixedTabSpaceIndentation),
+        ("testMixedTabsAndSpacesIndentation", testMixedTabsAndSpacesIndentation),
+        ("testKeepingIndentation", testKeepingIndentation),
+        ("testIndentationLength", testIndentationLength),
+        ("testUnindentation", testUnindentation),
+        ("testEmptyLinesBetween", testEmptyLinesBetween),
+        ("testsBrackets", testsBrackets),
+        ("testCommentLines", testCommentLines),
+        ("testDuplicateWarningAvoidanceMechanism", testDuplicateWarningAvoidanceMechanism)
     ]
 }
 
@@ -970,6 +1021,12 @@ extension OperatorUsageWhitespaceRuleTests {
     ]
 }
 
+extension OptionalEnumCaseMatchingRuleTests {
+    static var allTests: [(String, (OptionalEnumCaseMatchingRuleTests) -> () throws -> Void)] = [
+        ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+    ]
+}
+
 extension OverriddenSuperCallRuleTests {
     static var allTests: [(String, (OverriddenSuperCallRuleTests) -> () throws -> Void)] = [
         ("testWithDefaultConfiguration", testWithDefaultConfiguration)
@@ -984,6 +1041,12 @@ extension OverrideInExtensionRuleTests {
 
 extension PatternMatchingKeywordsRuleTests {
     static var allTests: [(String, (PatternMatchingKeywordsRuleTests) -> () throws -> Void)] = [
+        ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+    ]
+}
+
+extension PreferSelfTypeOverTypeOfSelfRuleTests {
+    static var allTests: [(String, (PreferSelfTypeOverTypeOfSelfRuleTests) -> () throws -> Void)] = [
         ("testWithDefaultConfiguration", testWithDefaultConfiguration)
     ]
 }
@@ -1232,7 +1295,8 @@ extension RulesTests {
         ("testLeadingWhitespace", testLeadingWhitespace),
         ("testMark", testMark),
         ("testRequiredEnumCase", testRequiredEnumCase),
-        ("testTrailingNewline", testTrailingNewline)
+        ("testTrailingNewline", testTrailingNewline),
+        ("testOrphanedDocComment", testOrphanedDocComment)
     ]
 }
 
@@ -1610,7 +1674,6 @@ XCTMain([
     testCase(DiscouragedObjectLiteralRuleTests.allTests),
     testCase(DiscouragedOptionalBooleanRuleTests.allTests),
     testCase(DiscouragedOptionalCollectionRuleTests.allTests),
-    testCase(DocumentationTests.allTests),
     testCase(DuplicateEnumCasesRuleTests.allTests),
     testCase(DuplicateImportsRuleTests.allTests),
     testCase(DynamicInlineRuleTests.allTests),
@@ -1621,6 +1684,8 @@ XCTMain([
     testCase(EmptyParenthesesWithTrailingClosureRuleTests.allTests),
     testCase(EmptyStringRuleTests.allTests),
     testCase(EmptyXCTestMethodRuleTests.allTests),
+    testCase(EnumCaseAssociatedValuesLengthRuleTests.allTests),
+    testCase(ExpiringTodoRuleTests.allTests),
     testCase(ExplicitACLRuleTests.allTests),
     testCase(ExplicitEnumRawValueRuleTests.allTests),
     testCase(ExplicitInitRuleTests.allTests),
@@ -1634,6 +1699,7 @@ XCTMain([
     testCase(FatalErrorMessageRuleTests.allTests),
     testCase(FileHeaderRuleTests.allTests),
     testCase(FileLengthRuleTests.allTests),
+    testCase(FileNameNoSpaceRuleTests.allTests),
     testCase(FileNameRuleTests.allTests),
     testCase(FileTypesOrderRuleTests.allTests),
     testCase(FirstWhereRuleTests.allTests),
@@ -1650,9 +1716,11 @@ XCTMain([
     testCase(IdenticalOperandsRuleTests.allTests),
     testCase(IdentifierNameRuleTests.allTests),
     testCase(ImplicitGetterRuleTests.allTests),
+    testCase(ImplicitReturnConfigurationTests.allTests),
     testCase(ImplicitReturnRuleTests.allTests),
     testCase(ImplicitlyUnwrappedOptionalConfigurationTests.allTests),
     testCase(ImplicitlyUnwrappedOptionalRuleTests.allTests),
+    testCase(IndentationWidthRuleTests.allTests),
     testCase(InertDeferRuleTests.allTests),
     testCase(IntegrationTests.allTests),
     testCase(IsDisjointRuleTests.allTests),
@@ -1697,9 +1765,11 @@ XCTMain([
     testCase(OpeningBraceRuleTests.allTests),
     testCase(OperatorFunctionWhitespaceRuleTests.allTests),
     testCase(OperatorUsageWhitespaceRuleTests.allTests),
+    testCase(OptionalEnumCaseMatchingRuleTests.allTests),
     testCase(OverriddenSuperCallRuleTests.allTests),
     testCase(OverrideInExtensionRuleTests.allTests),
     testCase(PatternMatchingKeywordsRuleTests.allTests),
+    testCase(PreferSelfTypeOverTypeOfSelfRuleTests.allTests),
     testCase(PrefixedTopLevelConstantRuleTests.allTests),
     testCase(PrivateActionRuleTests.allTests),
     testCase(PrivateOutletRuleTests.allTests),

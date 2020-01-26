@@ -89,13 +89,13 @@ public struct LiteralExpressionEndIdentationRule: Rule, ConfigurationProviderRul
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violations(in: file).map { violation in
             return styleViolation(for: violation, in: file)
         }
     }
 
-    private func styleViolation(for violation: Violation, in file: File) -> StyleViolation {
+    private func styleViolation(for violation: Violation, in file: SwiftLintFile) -> StyleViolation {
         let reason = "\(LiteralExpressionEndIdentationRule.description.description) " +
                      "Expected \(violation.indentationRanges.expected.length), " +
                      "got \(violation.indentationRanges.actual.length)."
@@ -110,9 +110,13 @@ public struct LiteralExpressionEndIdentationRule: Rule, ConfigurationProviderRul
 }
 
 extension LiteralExpressionEndIdentationRule: CorrectableRule {
-    public func correct(file: File) -> [Correction] {
-        let allViolations = violations(in: file).reversed().filter {
-            !file.ruleEnabled(violatingRanges: [$0.range], for: self).isEmpty
+    public func correct(file: SwiftLintFile) -> [Correction] {
+        let allViolations = violations(in: file).reversed().filter { violation in
+            guard let nsRange = file.stringView.byteRangeToNSRange(violation.range) else {
+                return false
+            }
+
+            return !file.ruleEnabled(violatingRanges: [nsRange], for: self).isEmpty
         }
 
         guard !allViolations.isEmpty else {
@@ -173,38 +177,27 @@ extension LiteralExpressionEndIdentationRule: CorrectableRule {
 extension LiteralExpressionEndIdentationRule {
     fileprivate struct Violation {
         var indentationRanges: (expected: NSRange, actual: NSRange)
-        var endOffset: Int
-        var range: NSRange
+        var endOffset: ByteCount
+        var range: ByteRange
     }
 
-    fileprivate func violations(in file: File) -> [Violation] {
-        return violations(in: file, dictionary: file.structure.dictionary)
-    }
-
-    private func violations(in file: File,
-                            dictionary: [String: SourceKitRepresentable]) -> [Violation] {
-        return dictionary.substructure.flatMap { subDict -> [Violation] in
-            var subViolations = violations(in: file, dictionary: subDict)
-
-            if let kindString = subDict.kind,
-                let kind = SwiftExpressionKind(rawValue: kindString),
-                let violation = violation(in: file, of: kind, dictionary: subDict) {
-                subViolations.append(violation)
-            }
-
-            return subViolations
+    fileprivate func violations(in file: SwiftLintFile) -> [Violation] {
+        return file.structureDictionary.traverseDepthFirst { subDict in
+            guard let kind = subDict.expressionKind else { return nil }
+            guard let violation = violation(in: file, of: kind, dictionary: subDict) else { return nil }
+            return [violation]
         }
     }
 
-    private func violation(in file: File, of kind: SwiftExpressionKind,
-                           dictionary: [String: SourceKitRepresentable]) -> Violation? {
+    private func violation(in file: SwiftLintFile, of kind: SwiftExpressionKind,
+                           dictionary: SourceKittenDictionary) -> Violation? {
         guard kind == .dictionary || kind == .array else {
             return nil
         }
 
         let elements = dictionary.elements.filter { $0.kind == "source.lang.swift.structure.elem.expr" }
 
-        let contents = file.contents.bridge()
+        let contents = file.stringView
         guard !elements.isEmpty,
             let offset = dictionary.offset,
             let length = dictionary.length,
@@ -216,8 +209,9 @@ extension LiteralExpressionEndIdentationRule {
             let (lastParamLine, _) = contents.lineAndCharacter(forByteOffset: lastParamOffset),
             case let endOffset = offset + length - 1,
             let (endLine, endPosition) = contents.lineAndCharacter(forByteOffset: endOffset),
-            lastParamLine != endLine else {
-                return nil
+            lastParamLine != endLine
+        else {
+            return nil
         }
 
         let range = file.lines[startLine - 1].range
@@ -225,8 +219,9 @@ extension LiteralExpressionEndIdentationRule {
         let actual = endPosition - 1
         guard let match = regex.firstMatch(in: file.contents, options: [], range: range)?.range,
             case let expected = match.location - range.location,
-            expected != actual  else {
-                return nil
+            expected != actual
+        else {
+            return nil
         }
 
         var expectedRange = range
@@ -237,6 +232,6 @@ extension LiteralExpressionEndIdentationRule {
 
         return Violation(indentationRanges: (expected: expectedRange, actual: actualRange),
                          endOffset: endOffset,
-                         range: NSRange(location: offset, length: length))
+                         range: ByteRange(location: offset, length: length))
     }
 }

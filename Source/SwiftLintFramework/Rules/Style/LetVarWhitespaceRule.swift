@@ -39,11 +39,15 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
         ]
     )
 
-    public func validate(file: File) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
+        let dict = file.structureDictionary
+
         var attributeLines = attributeLineNumbers(file: file)
-        let varLines = varLetLineNumbers(file: file,
-                                         structure: file.structure.dictionary.substructure,
-                                         attributeLines: &attributeLines)
+        var varLines = Set<Int>()
+        varLetLineNumbers(file: file,
+                          structure: dict.substructure,
+                          attributeLines: &attributeLines,
+                          collectingInto: &varLines)
         let skippedLines = skippedLineNumbers(file: file)
         var violations = [StyleViolation]()
 
@@ -101,7 +105,7 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
         return false
     }
 
-    private func violated(_ violations: inout [StyleViolation], _ file: File, _ line: Int) {
+    private func violated(_ violations: inout [StyleViolation], _ file: SwiftLintFile, _ line: Int) {
         let content = file.lines[line].content
         let startIndex = content.rangeOfCharacter(from: CharacterSet.whitespaces.inverted)?.lowerBound
                          ?? content.startIndex
@@ -113,9 +117,10 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
                                          location: location))
     }
 
-    private func lineOffsets(file: File, statement: [String: SourceKitRepresentable]) -> (Int, Int)? {
+    private func lineOffsets(file: SwiftLintFile, statement: SourceKittenDictionary) -> (Int, Int)? {
         guard let offset = statement.offset,
-              let length = statement.length else {
+              let length = statement.length
+        else {
             return nil
         }
         let startLine = file.line(byteOffset: offset)
@@ -125,64 +130,65 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
     }
 
     // Collects all the line numbers containing var or let declarations
-    private func varLetLineNumbers(file: File,
-                                   structure: [[String: SourceKitRepresentable]],
-                                   attributeLines: inout Set<Int>) -> Set<Int> {
-        var result = Set<Int>()
-
+    private func varLetLineNumbers(file: SwiftLintFile,
+                                   structure: [SourceKittenDictionary],
+                                   attributeLines: inout Set<Int>,
+                                   collectingInto result: inout Set<Int>) {
         for statement in structure {
-            guard let kind = statement.kind,
+            guard statement.kind != nil,
                   let (startLine, endLine) = lineOffsets(file: file, statement: statement) else {
                 continue
             }
 
-            if SwiftDeclarationKind.nonVarAttributableKinds.contains(where: { $0.rawValue == kind }) {
-                if attributeLines.contains(startLine) {
-                    attributeLines.remove(startLine)
-                }
-            }
-            if SwiftDeclarationKind.varKinds.contains(where: { $0.rawValue == kind }) {
-                var lines = Set(startLine...((endLine < 0) ? file.lines.count : endLine))
-                var previousLine = startLine - 1
-
-                // Include preceding attributes
-                while attributeLines.contains(previousLine) {
-                    lines.insert(previousLine)
-                    attributeLines.remove(previousLine)
-                    previousLine -= 1
-                }
-
-                // Exclude the body where the accessors are
-                if let bodyOffset = statement.bodyOffset,
-                   let bodyLength = statement.bodyLength {
-                    let bodyStart = file.line(byteOffset: bodyOffset) + 1
-                    let bodyEnd = file.line(byteOffset: bodyOffset + bodyLength) - 1
-
-                    if bodyStart <= bodyEnd {
-                        lines.subtract(Set(bodyStart...bodyEnd))
+            if let declarationKind = statement.declarationKind {
+                if SwiftDeclarationKind.nonVarAttributableKinds.contains(declarationKind) {
+                    if attributeLines.contains(startLine) {
+                        attributeLines.remove(startLine)
                     }
                 }
-                result.formUnion(lines)
+                if SwiftDeclarationKind.varKinds.contains(declarationKind) {
+                    var lines = Set(startLine...((endLine < 0) ? file.lines.count : endLine))
+                    var previousLine = startLine - 1
+
+                    // Include preceding attributes
+                    while attributeLines.contains(previousLine) {
+                        lines.insert(previousLine)
+                        attributeLines.remove(previousLine)
+                        previousLine -= 1
+                    }
+
+                    // Exclude the body where the accessors are
+                    if let bodyOffset = statement.bodyOffset,
+                        let bodyLength = statement.bodyLength {
+                        let bodyStart = file.line(byteOffset: bodyOffset) + 1
+                        let bodyEnd = file.line(byteOffset: bodyOffset + bodyLength) - 1
+
+                        if bodyStart <= bodyEnd {
+                            lines.subtract(Set(bodyStart...bodyEnd))
+                        }
+                    }
+                    result.formUnion(lines)
+                }
             }
 
             let substructure = statement.substructure
 
             if !substructure.isEmpty {
-                result.formUnion(varLetLineNumbers(file: file,
-                                                   structure: substructure,
-                                                   attributeLines: &attributeLines))
+                varLetLineNumbers(file: file,
+                                  structure: substructure,
+                                  attributeLines: &attributeLines,
+                                  collectingInto: &result)
             }
         }
-        return result
     }
 
     // Collects all the line numbers containing comments or #if/#endif
-    private func skippedLineNumbers(file: File) -> Set<Int> {
+    private func skippedLineNumbers(file: SwiftLintFile) -> Set<Int> {
         var result = Set<Int>()
         let syntaxMap = file.syntaxMap
 
-        for token in syntaxMap.tokens where token.type == SyntaxKind.comment.rawValue ||
-                                            token.type == SyntaxKind.docComment.rawValue {
+        for token in syntaxMap.tokens where token.kind == .comment ||
+                                            token.kind == .docComment {
             let startLine = file.line(byteOffset: token.offset)
             let endLine = file.line(byteOffset: token.offset + token.length)
 
@@ -191,10 +197,9 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
             }
         }
 
-        let directives: Set = ["#if", "#elseif", "#else", "#endif", "#!", "#warning", "#error"]
         let directiveLines = file.lines.filter {
-            let trimmed = $0.content.trimmingCharacters(in: .whitespaces)
-            return directives.contains(where: trimmed.hasPrefix)
+            return regex(#"^\s*#(if|elseif|else|endif|\!|warning|error)"#)
+                .firstMatch(in: $0.content, options: [], range: $0.content.fullNSRange) != nil
         }
 
         result.formUnion(directiveLines.map { $0.index - 1 })
@@ -203,9 +208,9 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
 
     // Collects all the line numbers containing attributes but not declarations
     // other than let/var
-    private func attributeLineNumbers(file: File) -> Set<Int> {
+    private func attributeLineNumbers(file: SwiftLintFile) -> Set<Int> {
         return Set(file.syntaxMap.tokens.compactMap({ token in
-            if token.type == SyntaxKind.attributeBuiltin.rawValue {
+            if token.kind == .attributeBuiltin {
                 return file.line(byteOffset: token.offset)
             }
             return nil
@@ -224,10 +229,12 @@ private extension SwiftDeclarationKind {
         .functionOperator, .functionOperatorInfix, .functionOperatorPrefix, .functionOperatorPostfix ]
 }
 
-private extension File {
+private extension SwiftLintFile {
     // Zero based line number for specified byte offset
-    func line(byteOffset: Int) -> Int {
-        guard let line = contents.bridge().lineAndCharacter(forByteOffset: byteOffset)?.line else { return -1 }
-        return line - 1
+    func line(byteOffset: ByteCount) -> Int {
+        let lineIndex = lines.firstIndexAssumingSorted { line in
+            return line.byteRange.location > byteOffset
+        }
+        return (lineIndex ?? 0 ) - 1
     }
 }

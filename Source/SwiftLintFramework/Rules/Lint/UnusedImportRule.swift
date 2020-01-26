@@ -13,7 +13,7 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
         kind: .lint,
         nonTriggeringExamples: [
             """
-            import Dispatch
+            import Dispatch // This is used
             dispatchMain()
             """,
             """
@@ -45,7 +45,7 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
             A.dispatchMain()
             """,
             """
-            ↓import Foundation
+            ↓import Foundation // This is unused
             struct A {
               static func dispatchMain() {}
             }
@@ -83,7 +83,7 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
             A.dispatchMain()
             """,
             """
-            ↓import Foundation
+            ↓import Foundation // This is unused
             struct A {
               static func dispatchMain() {}
             }
@@ -115,6 +115,15 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
             dispatchMain()
             """,
             """
+            ↓@_exported import Foundation
+            import Dispatch
+            dispatchMain()
+            """:
+            """
+            import Dispatch
+            dispatchMain()
+            """,
+            """
             ↓import Foundation
             // @objc
             class A {}
@@ -122,12 +131,23 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
             """
             // @objc
             class A {}
+            """,
+            """
+            @testable import Foundation
+            ↓import Dispatch
+            @objc
+            class A {}
+            """:
+            """
+            @testable import Foundation
+            @objc
+            class A {}
             """
         ],
         requiresFileOnDisk: true
     )
 
-    public func validate(file: File, compilerArguments: [String]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, compilerArguments: [String]) -> [StyleViolation] {
         return violationRanges(in: file, compilerArguments: compilerArguments).map {
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severity,
@@ -135,7 +155,7 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
         }
     }
 
-    public func correct(file: File, compilerArguments: [String]) -> [Correction] {
+    public func correct(file: SwiftLintFile, compilerArguments: [String]) -> [Correction] {
         let violations = violationRanges(in: file, compilerArguments: compilerArguments)
         let matches = file.ruleEnabled(violatingRanges: violations, for: self)
         if matches.isEmpty { return [] }
@@ -152,7 +172,7 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
         return corrections
     }
 
-    private func violationRanges(in file: File, compilerArguments: [String]) -> [NSRange] {
+    private func violationRanges(in file: SwiftLintFile, compilerArguments: [String]) -> [NSRange] {
         guard !compilerArguments.isEmpty else {
             queuedPrintError("""
                 Attempted to lint file at path '\(file.path ?? "...")' with the \
@@ -165,7 +185,7 @@ public struct UnusedImportRule: CorrectableRule, ConfigurationProviderRule, Anal
     }
 }
 
-private extension File {
+private extension SwiftLintFile {
     func unusedImports(compilerArguments: [String]) -> [(String, NSRange)] {
         let contentsNSString = contents.bridge()
         var imports = Set<String>()
@@ -173,27 +193,25 @@ private extension File {
         var nextIsModuleImport = false
         let tokens = syntaxMap.tokens
         for token in tokens {
-            guard let tokenKind = SyntaxKind(rawValue: token.type) else {
+            guard let tokenKind = token.kind else {
                 continue
             }
-            if tokenKind == .keyword,
-                let substring = contentsNSString.substringWithByteRange(start: token.offset, length: token.length),
-                substring == "import" {
+            if tokenKind == .keyword, contents(for: token) == "import" {
                 nextIsModuleImport = true
                 continue
             }
             if syntaxKindsToSkip.contains(tokenKind) {
                 continue
             }
-            let cursorInfoRequest = Request.cursorInfo(file: path!, offset: Int64(token.offset),
+            let cursorInfoRequest = Request.cursorInfo(file: path!, offset: token.offset,
                                                        arguments: compilerArguments)
-            guard let cursorInfo = try? cursorInfoRequest.sendIfNotDisabled() else {
+            guard let cursorInfo = (try? cursorInfoRequest.sendIfNotDisabled()).map(SourceKittenDictionary.init) else {
                 queuedPrintError("Could not get cursor info")
                 continue
             }
             if nextIsModuleImport {
-                if let importedModule = cursorInfo["key.modulename"] as? String,
-                    cursorInfo["key.kind"] as? String == "source.lang.swift.ref.module" {
+                if let importedModule = cursorInfo.moduleName,
+                    cursorInfo.kind == "source.lang.swift.ref.module" {
                     imports.insert(importedModule)
                     nextIsModuleImport = false
                     continue
@@ -227,40 +245,37 @@ private extension File {
 
     func rangedAndSortedUnusedImports(of unusedImports: [String], contents: NSString) -> [(String, NSRange)] {
         return unusedImports
-            .map { module in
-                let testableImportRange = contents.range(of: "@testable import \(module)\n")
-                if testableImportRange.location != NSNotFound {
-                    return (module, testableImportRange)
-                }
-
-                return (module, contents.range(of: "import \(module)\n"))
+            .compactMap { module in
+                self.match(pattern: "^(@.+ +)?import +\(module)\\b.*?\n").first.map { (module, $0.0) }
             }
             .sorted(by: { $0.1.location < $1.1.location })
     }
 
     // Operators are omitted in the editor.open request and thus have to be looked up by the indexsource request
-    func operatorImports(arguments: [String], processedTokenOffsets: Set<Int>) -> Set<String> {
-        guard let index = try? Request.index(file: path!, arguments: arguments).sendIfNotDisabled() else {
+    func operatorImports(arguments: [String], processedTokenOffsets: Set<ByteCount>) -> Set<String> {
+        guard let index = (try? Request.index(file: path!, arguments: arguments).sendIfNotDisabled())
+            .map(SourceKittenDictionary.init) else {
             queuedPrintError("Could not get index")
             return []
         }
 
-        let operatorEntities = flatEntities(entity: index).filter { mightBeOperator(kind: $0["key.kind"] as? String) }
+        let operatorEntities = flatEntities(entity: index).filter { mightBeOperator(kind: $0.kind) }
         let offsetPerLine = self.offsetPerLine()
         var imports = Set<String>()
 
         for entity in operatorEntities {
             if
-                let line = entity["key.line"] as? Int64,
-                let column = entity["key.column"] as? Int64,
+                let line = entity.line,
+                let column = entity.column,
                 let lineOffset = offsetPerLine[Int(line) - 1] {
                 let offset = lineOffset + column - 1
 
                 // Filter already processed tokens such as static methods that are not operators
-                guard !processedTokenOffsets.contains(Int(offset)) else { continue }
+                guard !processedTokenOffsets.contains(ByteCount(offset)) else { continue }
 
-                let cursorInfoRequest = Request.cursorInfo(file: path!, offset: offset, arguments: arguments)
-                guard let cursorInfo = try? cursorInfoRequest.sendIfNotDisabled() else {
+                let cursorInfoRequest = Request.cursorInfo(file: path!, offset: ByteCount(offset), arguments: arguments)
+                guard let cursorInfo = (try? cursorInfoRequest.sendIfNotDisabled())
+                    .map(SourceKittenDictionary.init) else {
                     queuedPrintError("Could not get cursor info")
                     continue
                 }
@@ -272,8 +287,7 @@ private extension File {
         return imports
     }
 
-    typealias Entity = [String: SourceKitRepresentable]
-    func flatEntities(entity: Entity) -> [Entity] {
+    func flatEntities(entity: SourceKittenDictionary) -> [SourceKittenDictionary] {
         let entities = entity.entities
         if entities.isEmpty {
             return [entity]
@@ -306,8 +320,8 @@ private extension File {
         ].contains { kind.hasPrefix($0) }
     }
 
-    func appendUsedImports(cursorInfo: [String: SourceKitRepresentable], usrFragments: inout Set<String>) {
-        if let usr = cursorInfo["key.modulename"] as? String {
+    func appendUsedImports(cursorInfo: SourceKittenDictionary, usrFragments: inout Set<String>) {
+        if let usr = cursorInfo.moduleName {
             usrFragments.formUnion(usr.split(separator: ".").map(String.init))
         }
     }
@@ -317,7 +331,7 @@ private extension File {
             return false
         }
 
-        func containsAttributesRequiringFoundation(dict: [String: SourceKitRepresentable]) -> Bool {
+        func containsAttributesRequiringFoundation(dict: SourceKittenDictionary) -> Bool {
             if !attributesRequiringFoundation.isDisjoint(with: dict.enclosedSwiftAttributes) {
                 return true
             } else {
@@ -325,7 +339,22 @@ private extension File {
             }
         }
 
-        return containsAttributesRequiringFoundation(dict: self.structure.dictionary)
+        return containsAttributesRequiringFoundation(dict: self.structureDictionary)
+    }
+}
+
+private extension SourceKittenDictionary {
+    /// Module name in @import expressions
+    var moduleName: String? {
+        return value["key.modulename"] as? String
+    }
+
+    var line: Int64? {
+        return value["key.line"] as? Int64
+    }
+
+    var column: Int64? {
+        return value["key.column"] as? Int64
     }
 }
 

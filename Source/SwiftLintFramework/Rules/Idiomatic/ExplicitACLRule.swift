@@ -1,7 +1,7 @@
 import Foundation
 import SourceKittenFramework
 
-private typealias SourceKittenElement = [String: SourceKitRepresentable]
+private typealias SourceKittenElement = SourceKittenDictionary
 
 public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTestableRule {
     public var configuration = SeverityConfiguration(.warning)
@@ -53,15 +53,15 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
         ]
     )
 
-    private func findAllExplicitInternalTokens(in file: File) -> [NSRange] {
-        let contents = file.contents.bridge()
+    private func findAllExplicitInternalTokens(in file: SwiftLintFile) -> [ByteRange] {
+        let contents = file.stringView
         return file.match(pattern: "internal", with: [.attributeBuiltin]).compactMap {
             contents.NSRangeToByteRange(start: $0.location, length: $0.length)
         }
     }
 
-    private func offsetOfElements(from elements: [SourceKittenElement], in file: File,
-                                  thatAreNotInRanges ranges: [NSRange]) -> [Int] {
+    private func offsetOfElements(from elements: [SourceKittenElement], in file: SwiftLintFile,
+                                  thatAreNotInRanges ranges: [ByteRange]) -> [ByteCount] {
         let extensionKinds: Set<SwiftDeclarationKind> = [.extension, .extensionClass, .extensionEnum,
                                                          .extensionProtocol, .extensionStruct]
 
@@ -70,7 +70,7 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
                 return nil
             }
 
-            guard let kind = element.kind.flatMap(SwiftDeclarationKind.init(rawValue:)),
+            guard let kind = element.declarationKind,
                 !extensionKinds.contains(kind) else {
                     return nil
             }
@@ -83,15 +83,15 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
             // the "internal" token correspond to the type if there're only
             // attributeBuiltin (`final` for example) tokens between them
             let length = typeOffset - previousInternalByteRange.location
-            let range = NSRange(location: previousInternalByteRange.location, length: length)
+            let range = ByteRange(location: previousInternalByteRange.location, length: length)
             let internalDoesntBelongToType = Set(file.syntaxMap.kinds(inByteRange: range)) != [.attributeBuiltin]
 
             return internalDoesntBelongToType ? typeOffset : nil
         }
     }
 
-    public func validate(file: File) -> [StyleViolation] {
-        let implicitAndExplicitInternalElements = internalTypeElements(in: file.structure.dictionary)
+    public func validate(file: SwiftLintFile) -> [StyleViolation] {
+        let implicitAndExplicitInternalElements = internalTypeElements(in: file.structureDictionary )
 
         guard !implicitAndExplicitInternalElements.isEmpty else {
             return []
@@ -109,14 +109,14 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
         }
     }
 
-    private func lastInternalByteRange(before typeOffset: Int, in ranges: [NSRange]) -> NSRange? {
+    private func lastInternalByteRange(before typeOffset: ByteCount, in ranges: [ByteRange]) -> ByteRange? {
         let firstPartition = ranges.prefix(while: { typeOffset > $0.location })
         return firstPartition.last
     }
 
     private func internalTypeElements(in element: SourceKittenElement) -> [SourceKittenElement] {
         return element.substructure.flatMap { element -> [SourceKittenElement] in
-            guard let elementKind = element.kind.flatMap(SwiftDeclarationKind.init(rawValue:)) else {
+            guard let elementKind = element.declarationKind else {
                 return []
             }
 
@@ -125,11 +125,11 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
                 return []
             }
 
-            let isPrivate = element.accessibility.flatMap(AccessControlLevel.init(rawValue:))?.isPrivate ?? false
+            let isPrivate = element.accessibility?.isPrivate ?? false
             let internalTypeElementsInSubstructure = elementKind.childsAreExemptFromACL || isPrivate ? [] :
                 internalTypeElements(in: element)
 
-            if element.accessibility.flatMap(AccessControlLevel.init(identifier:)) == .internal {
+            if element.accessibility == .internal {
                 return internalTypeElementsInSubstructure + [element]
             }
 

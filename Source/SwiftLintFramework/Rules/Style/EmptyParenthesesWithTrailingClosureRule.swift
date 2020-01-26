@@ -46,8 +46,8 @@ public struct EmptyParenthesesWithTrailingClosureRule: SubstitutionCorrectableAS
 
     private static let emptyParenthesesRegex = regex("^\\s*\\(\\s*\\)")
 
-    public func validate(file: File, kind: SwiftExpressionKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: SwiftExpressionKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return violationRanges(in: file, kind: kind, dictionary: dictionary).map {
             StyleViolation(ruleDescription: type(of: self).description,
                            severity: configuration.severity,
@@ -55,12 +55,12 @@ public struct EmptyParenthesesWithTrailingClosureRule: SubstitutionCorrectableAS
         }
     }
 
-    public func substitution(for violationRange: NSRange, in file: File) -> (NSRange, String) {
+    public func substitution(for violationRange: NSRange, in file: SwiftLintFile) -> (NSRange, String)? {
         return (violationRange, "")
     }
 
-    public func violationRanges(in file: File, kind: SwiftExpressionKind,
-                                dictionary: [String: SourceKitRepresentable]) -> [NSRange] {
+    public func violationRanges(in file: SwiftLintFile, kind: SwiftExpressionKind,
+                                dictionary: SourceKittenDictionary) -> [NSRange] {
         guard kind == .call else {
             return []
         }
@@ -76,18 +76,20 @@ public struct EmptyParenthesesWithTrailingClosureRule: SubstitutionCorrectableAS
 
         // avoid the more expensive regex match if there's no trailing closure in the substructure
         if SwiftVersion.current >= .fourDotTwo,
-            dictionary.substructure.last?.kind.flatMap(SwiftExpressionKind.init(rawValue:)) != .closure {
+            dictionary.substructure.last?.expressionKind != .closure {
             return []
         }
 
         let rangeStart = nameOffset + nameLength
         let rangeLength = (offset + length) - (nameOffset + nameLength)
+        let byteRange = ByteRange(location: rangeStart, length: rangeLength)
         let regex = EmptyParenthesesWithTrailingClosureRule.emptyParenthesesRegex
 
-        guard let range = file.contents.bridge().byteRangeToNSRange(start: rangeStart, length: rangeLength),
+        guard let range = file.stringView.byteRangeToNSRange(byteRange),
             let match = regex.firstMatch(in: file.contents, options: [], range: range)?.range,
-            match.location == range.location else {
-                return []
+            match.location == range.location
+        else {
+            return []
         }
 
         return [match]

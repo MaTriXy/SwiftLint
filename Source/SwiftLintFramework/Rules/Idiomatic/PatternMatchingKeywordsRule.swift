@@ -34,19 +34,19 @@ public struct PatternMatchingKeywordsRule: ASTRule, ConfigurationProviderRule, O
         ].map(wrapInSwitch)
     )
 
-    public func validate(file: File, kind: StatementKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: StatementKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         guard kind == .case else {
             return []
         }
 
-        let contents = file.contents.bridge()
+        let contents = file.stringView
         return dictionary.elements.flatMap { subDictionary -> [StyleViolation] in
             guard subDictionary.kind == "source.lang.swift.structure.elem.pattern",
-                let offset = subDictionary.offset,
-                let length = subDictionary.length,
-                let caseRange = contents.byteRangeToNSRange(start: offset, length: length) else {
-                    return []
+                let caseByteRange = subDictionary.byteRange,
+                let caseRange = contents.byteRangeToNSRange(caseByteRange)
+            else {
+                return []
             }
 
             let letMatches = file.match(pattern: "\\blet\\b", with: [.keyword], range: caseRange)

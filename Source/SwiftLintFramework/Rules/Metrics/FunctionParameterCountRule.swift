@@ -34,16 +34,14 @@ public struct FunctionParameterCountRule: ASTRule, ConfigurationProviderRule {
         ]
     )
 
-    public func validate(file: File, kind: SwiftDeclarationKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: SwiftDeclarationKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         guard SwiftDeclarationKind.functionKinds.contains(kind) else {
             return []
         }
 
-        let nameOffset = dictionary.nameOffset ?? 0
-        let length = dictionary.nameLength ?? 0
-
-        if functionIsInitializer(file: file, byteOffset: nameOffset, byteLength: length) {
+        let nameRange = ByteRange(location: dictionary.nameOffset ?? 0, length: dictionary.nameLength ?? 0)
+        if functionIsInitializer(file: file, byteRange: nameRange) {
             return []
         }
 
@@ -53,8 +51,7 @@ public struct FunctionParameterCountRule: ASTRule, ConfigurationProviderRule {
 
         let minThreshold = configuration.severityConfiguration.params.map({ $0.value }).min(by: <)
 
-        let allParameterCount = allFunctionParameterCount(structure: dictionary.substructure, offset: nameOffset,
-                                                          length: length)
+        let allParameterCount = allFunctionParameterCount(structure: dictionary.substructure, range: nameRange)
         if allParameterCount < minThreshold! {
             return []
         }
@@ -62,7 +59,7 @@ public struct FunctionParameterCountRule: ASTRule, ConfigurationProviderRule {
         var parameterCount = allParameterCount
 
         if configuration.ignoresDefaultParameters {
-            parameterCount -= defaultFunctionParameterCount(file: file, byteOffset: nameOffset, byteLength: length)
+            parameterCount -= defaultFunctionParameterCount(file: file, byteRange: nameRange)
         }
 
         for parameter in configuration.severityConfiguration.params where parameterCount > parameter.value {
@@ -78,35 +75,33 @@ public struct FunctionParameterCountRule: ASTRule, ConfigurationProviderRule {
         return []
     }
 
-    private func allFunctionParameterCount(structure: [[String: SourceKitRepresentable]],
-                                           offset: Int, length: Int) -> Int {
+    private func allFunctionParameterCount(structure: [SourceKittenDictionary], range: ByteRange) -> Int {
         var parameterCount = 0
         for subDict in structure {
-            guard let key = subDict.kind,
-                let parameterOffset = subDict.offset else {
-                    continue
+            guard subDict.kind != nil, let parameterOffset = subDict.offset else {
+                continue
             }
 
-            guard offset..<(offset + length) ~= parameterOffset else {
+            guard range.contains(parameterOffset) else {
                 return parameterCount
             }
 
-            if SwiftDeclarationKind(rawValue: key) == .varParameter {
+            if subDict.declarationKind == .varParameter {
                 parameterCount += 1
             }
         }
         return parameterCount
     }
 
-    private func defaultFunctionParameterCount(file: File, byteOffset: Int, byteLength: Int) -> Int {
-        let substring = file.contents.bridge().substringWithByteRange(start: byteOffset, length: byteLength)!
+    private func defaultFunctionParameterCount(file: SwiftLintFile, byteRange: ByteRange) -> Int {
+        let substring = file.stringView.substringWithByteRange(byteRange)!
         let equals = substring.filter { $0 == "=" }
         return equals.count
     }
 
-    private func functionIsInitializer(file: File, byteOffset: Int, byteLength: Int) -> Bool {
-        guard let name = file.contents.bridge()
-            .substringWithByteRange(start: byteOffset, length: byteLength),
+    private func functionIsInitializer(file: SwiftLintFile, byteRange: ByteRange) -> Bool {
+        guard let name = file.stringView
+            .substringWithByteRange(byteRange),
             name.hasPrefix("init"),
             let funcName = name.components(separatedBy: CharacterSet(charactersIn: "<(")).first else {
             return false

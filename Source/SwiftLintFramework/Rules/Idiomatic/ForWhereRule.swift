@@ -1,4 +1,3 @@
-import Foundation
 import SourceKittenFramework
 
 public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestableRule {
@@ -87,13 +86,13 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
 
     private static let commentKinds = SyntaxKind.commentAndStringKinds
 
-    public func validate(file: File, kind: StatementKind,
-                         dictionary: [String: SourceKitRepresentable]) -> [StyleViolation] {
+    public func validate(file: SwiftLintFile, kind: StatementKind,
+                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
         guard kind == .forEach,
             let subDictionary = forBody(dictionary: dictionary),
             subDictionary.substructure.count == 1,
             let bodyDictionary = subDictionary.substructure.first,
-            bodyDictionary.kind.flatMap(StatementKind.init) == .if,
+            bodyDictionary.statementKind == .if,
             isOnlyOneIf(dictionary: bodyDictionary),
             isOnlyIfInsideFor(forDictionary: subDictionary, ifDictionary: bodyDictionary, file: file),
             !isComplexCondition(dictionary: bodyDictionary, file: file),
@@ -108,24 +107,24 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
         ]
     }
 
-    private func forBody(dictionary: [String: SourceKitRepresentable]) -> [String: SourceKitRepresentable]? {
+    private func forBody(dictionary: SourceKittenDictionary) -> SourceKittenDictionary? {
         return dictionary.substructure.first(where: { subDict -> Bool in
-            subDict.kind.flatMap(StatementKind.init) == .brace
+            subDict.statementKind == .brace
         })
     }
 
-    private func isOnlyOneIf(dictionary: [String: SourceKitRepresentable]) -> Bool {
+    private func isOnlyOneIf(dictionary: SourceKittenDictionary) -> Bool {
         let substructure = dictionary.substructure
         guard substructure.count == 1 else {
             return false
         }
 
-        return dictionary.substructure.first?.kind.flatMap(StatementKind.init) == .brace
+        return dictionary.substructure.first?.statementKind == .brace
     }
 
-    private func isOnlyIfInsideFor(forDictionary: [String: SourceKitRepresentable],
-                                   ifDictionary: [String: SourceKitRepresentable],
-                                   file: File) -> Bool {
+    private func isOnlyIfInsideFor(forDictionary: SourceKittenDictionary,
+                                   ifDictionary: SourceKittenDictionary,
+                                   file: SwiftLintFile) -> Bool {
         guard let offset = forDictionary.offset,
             let length = forDictionary.length,
             let ifOffset = ifDictionary.offset,
@@ -133,9 +132,9 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
                 return false
         }
 
-        let beforeIfRange = NSRange(location: offset, length: ifOffset - offset)
+        let beforeIfRange = ByteRange(location: offset, length: ifOffset - offset)
         let ifFinalPosition = ifOffset + ifLength
-        let afterIfRange = NSRange(location: ifFinalPosition, length: offset + length - ifFinalPosition)
+        let afterIfRange = ByteRange(location: ifFinalPosition, length: offset + length - ifFinalPosition)
         let allKinds = file.syntaxMap.kinds(inByteRange: beforeIfRange) +
             file.syntaxMap.kinds(inByteRange: afterIfRange)
 
@@ -146,15 +145,13 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
         return doesntContainComments
     }
 
-    private func isComplexCondition(dictionary: [String: SourceKitRepresentable], file: File) -> Bool {
+    private func isComplexCondition(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
         let kind = "source.lang.swift.structure.elem.condition_expr"
-        let contents = file.contents.bridge()
         return dictionary.elements.contains { element in
             guard element.kind == kind,
-                let offset = element.offset,
-                let length = element.length,
-                let range = contents.byteRangeToNSRange(start: offset, length: length) else {
-                    return false
+                let range = element.byteRange.flatMap(file.stringView.byteRangeToNSRange)
+            else {
+                return false
             }
 
             let containsKeyword = !file.match(pattern: "\\blet|var|case\\b", with: [.keyword], range: range).isEmpty
