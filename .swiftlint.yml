@@ -1,94 +1,104 @@
+# Directory and file filters
 included:
+  - Plugins
   - Source
   - Tests
+  - Package.swift
 excluded:
-  - Tests/SwiftLintFrameworkTests/Resources
+  - Tests/BuiltInRulesTests/Resources
+  - Tests/FrameworkTests/Resources
+
+# Enabled/disabled rules
 analyzer_rules:
   - unused_declaration
   - unused_import
 opt_in_rules:
-  - anyobject_protocol
-  - array_init
-  - attributes
-  - closure_end_indentation
-  - closure_spacing
-  - collection_alignment
-  - contains_over_filter_count
-  - contains_over_filter_is_empty
-  - contains_over_first_not_nil
-  - discouraged_object_literal
-  - empty_count
-  - empty_string
-  - empty_xctest_method
-  - explicit_init
-  - extension_access_modifier
-  - fallthrough
-  - fatal_error_message
-  - file_header
-  - file_name
-  - first_where
-  - flatmap_over_map_reduce
-  - identical_operands
-  - joined_default_parameter
-  - legacy_random
-  - let_var_whitespace
-  - last_where
-  - literal_expression_end_indentation
-  - lower_acl_than_parent
-  - modifier_order
-  - nimble_operator
-  - nslocalizedstring_key
-  - number_separator
-  - object_literal
-  - operator_usage_whitespace
-  - overridden_super_call
-  - override_in_extension
-  - pattern_matching_keywords
-  - private_action
-  - private_outlet
-  - prohibited_interface_builder
-  - prohibited_super_call
-  - quick_discouraged_call
-  - quick_discouraged_focused_test
-  - quick_discouraged_pending_test
-  - reduce_into
-  - redundant_nil_coalescing
-  - redundant_type_annotation
-  - single_test_class
-  - sorted_first_last
-  - sorted_imports
-  - static_operator
-  - strong_iboutlet
-  - toggle_bool
-  - unavailable_function
-  - unneeded_parentheses_in_closure_argument
-  - unowned_variable_capture
-  - untyped_error_in_catch
-  - vertical_parameter_alignment_on_call
-  - vertical_whitespace_closing_braces
-  - vertical_whitespace_opening_braces
-  - xct_specific_matcher
-  - yoda_condition
+  - all
+disabled_rules:
+  - anonymous_argument_in_multiline_closure
+  - async_without_await
+  - conditional_returns_on_newline
+  - contrasted_opening_brace
+  - convenience_type
+  - discouraged_optional_collection
+  - explicit_acl
+  - explicit_enum_raw_value
+  - explicit_top_level_acl
+  - explicit_type_interface
+  - file_types_order
+  - force_unwrapping
+  - function_default_parameter_at_end
+  - indentation_width
+  - missing_docs
+  - multiline_arguments
+  - multiline_arguments_brackets
+  - multiline_function_chains
+  - multiline_parameters_brackets
+  - no_extension_access_modifier
+  - no_grouping_extension
+  - no_magic_numbers
+  - one_declaration_per_file
+  - prefer_key_path # Re-enable once we are on Swift 6.
+  - prefer_nimble
+  - prefixed_toplevel_constant
+  - required_deinit
+  - sorted_enum_cases
+  - strict_fileprivate
+  - switch_case_on_newline
+  - todo
+  - trailing_closure
+  - type_contents_order
+  - vertical_whitespace_between_cases
 
+# Configurations
+attributes:
+  always_on_line_above:
+    - "@ConfigurationElement"
+    - "@OptionGroup"
+    - "@RuleConfigurationDescriptionBuilder"
+balanced_xctest_lifecycle: &unit_test_configuration
+  test_parent_classes:
+    - SwiftLintTestCase
+    - XCTestCase
+closure_body_length:
+    warning: 50
+    error: 100
+empty_xctest_method: *unit_test_configuration
+file_name:
+  excluded:
+    - Exports.swift
+    - GeneratedTests.swift
+    - RuleConfigurationMacros.swift
+    - SwiftSyntax+SwiftLint.swift
+    - TestHelpers.swift
+final_test_case: *unit_test_configuration
+function_body_length: 60
 identifier_name:
   excluded:
     - id
+large_tuple: 3
 number_separator:
   minimum_length: 5
-file_name:
-  excluded:
-    - main.swift
-    - LinuxMain.swift
-    - TestHelpers.swift
-    - shim.swift
-    - AutomaticRuleTests.generated.swift
+redundant_type_annotation:
+  consider_default_literal_types_redundant: true
+single_test_class: *unit_test_configuration
+trailing_comma:
+  mandatory_comma: true
+type_body_length: 400
+unneeded_override:
+  affect_initializers: true
+unused_import:
+  always_keep_imports:
+    - SwiftSyntaxBuilder # we can't detect uses of string interpolation of swift syntax nodes
+    - SwiftLintFramework # now that this is a wrapper around other modules, don't treat as unused
 
+# Custom rules
 custom_rules:
   rule_id:
-    included: Source/SwiftLintFramework/Rules/.+/\w+\.swift
+    included: Source/SwiftLintBuiltInRules/Rules/.+/\w+\.swift
     name: Rule ID
     message: Rule IDs must be all lowercase, snake case and not end with `rule`
-    regex: identifier:\s*("\w+_rule"|"\S*[^a-z_]\S*")
+    regex: ^\s+identifier:\s*("\w+_rule"|"\S*[^a-z_]\S*")
     severity: error
   fatal_error:
     name: Fatal Error

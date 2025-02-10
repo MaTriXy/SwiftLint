@@ -1,0 +1,27 @@
+steps:
+  - label: "Bazel"
+    commands:
+      - echo "+++ Build"
+      - bazel build :swiftlint
+      - echo "+++ Test"
+      - make bazel_test
+  - label: "SwiftPM"
+    commands:
+      - echo "+++ Test"
+      - make spm_test
+  - label: "Danger"
+    commands:
+      - echo "+++ Install Bundler"
+      - gem install bundler -v 2.4.22
+      - echo "+++ Run OSS Scan"
+      - make oss_scan
+  - label: "TSan Tests"
+    commands:
+      - echo "+++ Test"
+      - make bazel_test_tsan
+  - label: "Sourcery"
+    commands:
+      - echo "+++ Run Sourcery"
+      - make --always-make sourcery
+      - echo "+++ Diff Files"
+      - git diff --quiet HEAD

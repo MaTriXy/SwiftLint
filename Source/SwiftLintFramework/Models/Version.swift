@@ -1,8 +1,20 @@
 /// A type describing the SwiftLint version.
-public struct Version {
+public struct Version: VersionComparable, Sendable {
     /// The string value for this version.
     public let value: String
 
+    /// An alias for `value` required for protocol conformance.
+    public var rawValue: String {
+        value
+    }
+
     /// The current SwiftLint version.
-    public static let current = Version(value: "0.38.2")
+    public static let current = Self(value: "0.58.2")
+
+    /// Public initializer.
+    ///
+    /// - parameter value: The string value for this version.
+    public init(value: String) {
+        self.value = value
+    }
 }

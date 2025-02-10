@@ -1,16 +1,13 @@
 /// Reports violations in the format Xcode uses to display in the IDE. (default)
-public struct XcodeReporter: Reporter {
+struct XcodeReporter: Reporter {
     // MARK: - Reporter Conformance
 
-    public static let identifier = "xcode"
-    public static let isRealtime = true
+    static let identifier = "xcode"
+    static let isRealtime = true
+    static let description = "Reports violations in the format Xcode uses to display in the IDE. (default)"
 
-    public var description: String {
-        return "Reports violations in the format Xcode uses to display in the IDE. (default)"
-    }
-
-    public static func generateReport(_ violations: [StyleViolation]) -> String {
-        return violations.map(generateForSingleViolation).joined(separator: "\n")
+    static func generateReport(_ violations: [StyleViolation]) -> String {
+        violations.map(generateForSingleViolation).joined(separator: "\n")
     }
 
     /// Generates a report for a single violation.
@@ -19,13 +16,6 @@ public struct XcodeReporter: Reporter {
     ///
     /// - returns: The report for a single violation.
     internal static func generateForSingleViolation(_ violation: StyleViolation) -> String {
-        // {full_path_to_file}{:line}{:character}: {error,warning}: {content}
-        return [
-            "\(violation.location): ",
-            "\(violation.severity.rawValue): ",
-            "\(violation.ruleDescription.name) Violation: ",
-            violation.reason,
-            " (\(violation.ruleDescription.identifier))"
-        ].joined()
+        violation.description
     }
 }

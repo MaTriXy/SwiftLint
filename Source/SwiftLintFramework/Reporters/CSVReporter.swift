@@ -1,17 +1,14 @@
 import Foundation
 
 /// Reports violations as a newline-separated string of comma-separated values (CSV).
-public struct CSVReporter: Reporter {
+struct CSVReporter: Reporter {
     // MARK: - Reporter Conformance
 
-    public static let identifier = "csv"
-    public static let isRealtime = false
+    static let identifier = "csv"
+    static let isRealtime = false
+    static let description = "Reports violations as a newline-separated string of comma-separated values (CSV)."
 
-    public var description: String {
-        return "Reports violations as a newline-separated string of comma-separated values (CSV)."
-    }
-
-    public static func generateReport(_ violations: [StyleViolation]) -> String {
+    static func generateReport(_ violations: [StyleViolation]) -> String {
         let keys = [
             "file",
             "line",
@@ -19,7 +16,7 @@ public struct CSVReporter: Reporter {
             "severity",
             "type",
             "reason",
-            "rule_id"
+            "rule_id",
         ].joined(separator: ",")
 
         let rows = [keys] + violations.map(csvRow(for:))
@@ -29,14 +26,14 @@ public struct CSVReporter: Reporter {
     // MARK: - Private
 
     private static func csvRow(for violation: StyleViolation) -> String {
-        return [
+        [
             violation.location.file?.escapedForCSV() ?? "",
             violation.location.line?.description ?? "",
             violation.location.character?.description ?? "",
             violation.severity.rawValue.capitalized,
-            violation.ruleDescription.name.escapedForCSV(),
+            violation.ruleName.escapedForCSV(),
             violation.reason.escapedForCSV(),
-            violation.ruleDescription.identifier
+            violation.ruleIdentifier,
         ].joined(separator: ",")
     }
 }

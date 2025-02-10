@@ -1,6 +1,5 @@
 # Xcode
 #
-# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
 ## Build generated
 build/
@@ -22,6 +21,7 @@ xcuserdata
 *.moved-aside
 *.xcuserstate
 *.xcscmblueprint
+default.profraw
 
 ## Obj-C/Swift specific
 *.hmap
@@ -35,22 +35,19 @@ xcuserdata
 #
 #Pods/
 
-# Carthage
-#
-# Add this line if you want to avoid checking in source code from Carthage dependencies.
-# Carthage/Checkouts
-
-Carthage/Build
-
 # SwiftLint
 
+SwiftLint.xcodeproj
 SwiftLint.pkg
-SwiftLintFramework.framework.zip
+*.zip
 benchmark_*
-portable_swiftlint.zip
 osscheck/
 docs/
 rule_docs/
+bazel.tar.gz
+bazel.tar.gz.sha256
+ci.bazelrc
+user.bazelrc
 
 # Swift Package Manager
 #
@@ -65,3 +62,7 @@ Packages/
 # Bundler
 .bundle/
 bundle/
+
+# Bazel
+bazel-*
+/MODULE.bazel.lock
